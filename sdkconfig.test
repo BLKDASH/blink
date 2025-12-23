@@ -1,0 +1,10 @@
+# Disable watchdogs for testing
+CONFIG_ESP_TASK_WDT_EN=n
+CONFIG_ESP_INT_WDT=n
+
+# Increase stack size
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# Enable more verbose logging
+CONFIG_LOG_DEFAULT_LEVEL_DEBUG=y
+CONFIG_LOG_DEFAULT_LEVEL=4
