@@ -12,7 +12,7 @@
 
 // PWM配置
 #define PWM_GPIO 13
-#define PWM_FREQ_HZ 10000       // 10kHz
+#define PWM_FREQ_HZ 50          // 50Hz
 #define PWM_DUTY_LOW 20         // 低档占空比 20%
 #define PWM_DUTY_HIGH 80        // 高档占空比 80%
 

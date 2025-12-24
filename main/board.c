@@ -9,8 +9,8 @@
 #define LEDC_TIMER          LEDC_TIMER_0
 #define LEDC_MODE           LEDC_LOW_SPEED_MODE
 #define LEDC_CHANNEL        LEDC_CHANNEL_0
-#define LEDC_DUTY_RES       LEDC_TIMER_13_BIT   // 13位分辨率 (0-8191)
-#define LEDC_DUTY_MAX       8191                // 2^13 - 1
+#define LEDC_DUTY_RES       LEDC_TIMER_10_BIT   // 10位分辨率 (0-1023)
+#define LEDC_DUTY_MAX       1023                // 2^10 - 1
 
 void configure_led(void)
 {

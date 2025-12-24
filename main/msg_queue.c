@@ -241,8 +241,6 @@ static key_task_params_t s_key_task_params;
 static void key_task(void *pvParameters)
 {
     key_task_params_t *params = (key_task_params_t *)pvParameters;
-    QueueHandle_t led_queue = params->queue;
-    QueueHandle_t pwm_queue = params->pwm_queue;
     uint8_t gpio_num = params->gpio_num;
     
     key_state_t state = KEY_STATE_IDLE;
@@ -298,7 +296,7 @@ static void key_task(void *pvParameters)
                     
                     if (press_duration >= pdMS_TO_TICKS(LONG_PRESS_TIME_MS) && !long_press_sent) {
                         /* Long press detected - send to LED queue */
-                        msg_send_key(led_queue, gpio_num, KEY_EVENT_LONG_PRESS);
+                        msg_send_key(params->queue, gpio_num, KEY_EVENT_LONG_PRESS);
                         long_press_sent = true;
                         ESP_LOGI(TAG, "Long press detected on GPIO %d", gpio_num);
                     }
@@ -319,7 +317,7 @@ static void key_task(void *pvParameters)
                     } else {
                         /* Too long since first release - this is a new single click sequence */
                         /* First, send single click to LED queue */
-                        msg_send_key(led_queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        msg_send_key(params->queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
                         ESP_LOGI(TAG, "Single click detected on GPIO %d (timeout before second press)", gpio_num);
                         
                         /* Start new press sequence */
@@ -333,7 +331,7 @@ static void key_task(void *pvParameters)
                     
                     if (wait_duration > pdMS_TO_TICKS(DOUBLE_CLICK_INTERVAL_MS)) {
                         /* Timeout - this was a single click, send to LED queue */
-                        msg_send_key(led_queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        msg_send_key(params->queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
                         state = KEY_STATE_IDLE;
                         ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
                     }
@@ -344,8 +342,8 @@ static void key_task(void *pvParameters)
                 /* Second key pressed, waiting for release to confirm double click */
                 if (current_key_level == 1 && last_key_level == 0) {
                     /* Second key released - double click confirmed, send to PWM queue */
-                    if (pwm_queue != NULL) {
-                        msg_send_key(pwm_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
+                    if (params->pwm_queue != NULL) {
+                        msg_send_key(params->pwm_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
                     }
                     state = KEY_STATE_IDLE;
                     ESP_LOGI(TAG, "Double click detected on GPIO %d", gpio_num);
