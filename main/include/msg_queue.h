@@ -88,8 +88,6 @@ typedef struct {
 /**
  * @brief Initialize the message queue
  * 
- * Creates a FreeRTOS queue for message passing between tasks.
- * 
  * @param queue_len Number of messages the queue can hold
  * @return QueueHandle_t Queue handle on success, NULL on failure
  */
@@ -97,8 +95,6 @@ QueueHandle_t msg_queue_init(uint8_t queue_len);
 
 /**
  * @brief Send a message to the queue
- * 
- * Sends a message to the specified queue with configurable timeout.
  * 
  * @param queue Queue handle
  * @param msg Pointer to the message to send
@@ -110,8 +106,6 @@ bool msg_queue_send(QueueHandle_t queue, const msg_t *msg, uint32_t timeout_ms);
 /**
  * @brief Receive a message from the queue
  * 
- * Receives a message from the specified queue with configurable timeout.
- * 
  * @param queue Queue handle
  * @param msg Pointer to message structure to populate
  * @param timeout_ms Timeout in milliseconds (0 for no wait, portMAX_DELAY for infinite)
@@ -121,8 +115,6 @@ bool msg_queue_receive(QueueHandle_t queue, msg_t *msg, uint32_t timeout_ms);
 
 /**
  * @brief Send an LED control message to the queue
- * 
- * Convenience function that creates and sends an LED control message.
  * 
  * @param queue Queue handle
  * @param gpio_num LED GPIO number
@@ -134,19 +126,15 @@ bool msg_send_led(QueueHandle_t queue, uint8_t gpio_num, uint8_t state);
 /**
  * @brief Send a key event message to the queue
  * 
- * Convenience function that creates and sends a key event message.
- * 
  * @param queue Queue handle
  * @param gpio_num Key GPIO number
- * @param event Event type: KEY_EVENT_SINGLE_CLICK/KEY_EVENT_DOUBLE_CLICK/KEY_EVENT_LONG_PRESS
+ * @param event Event type
  * @return true if message was sent successfully, false on error
  */
 bool msg_send_key(QueueHandle_t queue, uint8_t gpio_num, key_event_t event);
 
 /**
  * @brief Send a PWM control message to the queue
- * 
- * Convenience function that creates and sends a PWM control message.
  * 
  * @param queue Queue handle
  * @param gpio_num PWM GPIO number
@@ -158,56 +146,10 @@ bool msg_send_pwm(QueueHandle_t queue, uint8_t gpio_num, uint8_t duty_percent);
 /**
  * @brief Validate if a message type is valid
  * 
- * Checks if the given message type is within the valid range
- * (between MSG_TYPE_NONE exclusive and MSG_TYPE_MAX exclusive).
- * 
  * @param type Message type to validate
  * @return true if the message type is valid, false otherwise
  */
 bool msg_type_is_valid(msg_type_t type);
-
-/**
- * @brief Create the LED handling task
- * 
- * Creates a FreeRTOS task that receives LED messages from the queue
- * and controls the corresponding GPIO levels.
- * 
- * @param queue Queue handle for receiving LED messages
- * @return pdPASS on success, errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY on failure
- */
-BaseType_t led_task_create(QueueHandle_t queue);
-
-/**
- * @brief Create the key scanning task
- * 
- * Creates a FreeRTOS task that scans the specified GPIO for key press
- * and release events, sending key messages to the queue.
- * 
- * @param queue Queue handle for sending key messages
- * @param gpio_num GPIO number of the key to scan
- * @return pdPASS on success, errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY on failure
- */
-BaseType_t key_task_create(QueueHandle_t queue, uint8_t gpio_num);
-
-/**
- * @brief Create the PWM handling task
- * 
- * Creates a FreeRTOS task that receives PWM messages from the queue
- * and controls the PWM duty cycle.
- * 
- * @param queue Queue handle for receiving PWM messages
- * @return pdPASS on success, errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY on failure
- */
-BaseType_t pwm_task_create(QueueHandle_t queue);
-
-/**
- * @brief Set the PWM queue handle for key task
- * 
- * Allows key task to send PWM control messages to a separate PWM queue.
- * 
- * @param queue PWM queue handle
- */
-void key_task_set_pwm_queue(QueueHandle_t queue);
 
 #ifdef __cplusplus
 }
