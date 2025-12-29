@@ -12,20 +12,29 @@
 static const char *TAG = "main";
 
 #define MSG_QUEUE_LEN 10
-// #define LED_BLINK_INTERVAL_MS 3000
-// #define LED_BLINK_STACK_SIZE 2048
-// #define LED_BLINK_PRIORITY 2
 
-// static void led_blink_task(void *pvParameters)
-// {
-//     uint8_t led_state = 0;
-    
-//     while (1) {
-//         led_state = !led_state;
-//         msg_send_led(LED_RED_GPIO, led_state);
-//         vTaskDelay(pdMS_TO_TICKS(LED_BLINK_INTERVAL_MS));
-//     }
-// }
+/**
+ * @brief 按键事件回调处理函数
+ */
+static void key_event_handler(uint8_t gpio_num, key_event_t event)
+{
+    switch (event) {
+        case KEY_EVENT_SINGLE_CLICK:
+            // 单击：切换红灯
+            msg_send_key_event(QUEUE_LED, gpio_num, event);
+            break;
+        case KEY_EVENT_LONG_PRESS:
+            // 长按：切换绿灯
+            msg_send_key_event(QUEUE_LED, gpio_num, event);
+            break;
+        case KEY_EVENT_DOUBLE_CLICK:
+            // 双击：切换PWM档位
+            msg_send_key_event(QUEUE_PWM, gpio_num, event);
+            break;
+        default:
+            break;
+    }
+}
 
 void app_main(void)
 {
@@ -63,16 +72,15 @@ void app_main(void)
         return;
     }
     
-    if (key_task_create(KEY_GPIO) != pdPASS) {
+    key_task_config_t key_cfg = {
+        .gpio_num = KEY_GPIO,
+        .callback = key_event_handler
+    };
+    if (key_task_create(&key_cfg) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create key task");
         return;
     }
 
-    // if (xTaskCreate(led_blink_task, "led_blink", LED_BLINK_STACK_SIZE, NULL, LED_BLINK_PRIORITY, NULL) != pdPASS) {
-    //     ESP_LOGE(TAG, "Failed to create LED blink task");
-    //     return;
-    // }
-    
     ESP_LOGI(TAG, "System initialized");
     
     vTaskDelete(NULL);

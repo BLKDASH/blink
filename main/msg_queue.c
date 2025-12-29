@@ -130,6 +130,26 @@ bool msg_send_to_wifi(wifi_cmd_t cmd)
     return msg_queue_send(queue, &msg, 100);
 }
 
+// 按键事件发送函数
+bool msg_send_key_event(queue_id_t queue_id, uint8_t gpio_num, key_event_t event)
+{
+    QueueHandle_t queue = msg_queue_get(queue_id);
+    if (queue == NULL) {
+        ESP_LOGE(TAG, "Queue %d not initialized", queue_id);
+        return false;
+    }
+
+    msg_t msg = {
+        .type = MSG_TYPE_KEY,
+        .data.key = {
+            .gpio_num = gpio_num,
+            .event = event
+        }
+    };
+
+    return msg_queue_send(queue, &msg, 100);
+}
+
 bool msg_type_is_valid(msg_type_t type)
 {
     return (type > MSG_TYPE_NONE && type < MSG_TYPE_MAX);

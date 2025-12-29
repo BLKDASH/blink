@@ -94,6 +94,9 @@ bool msg_send_to_led(uint8_t gpio_num, uint8_t state);
 bool msg_send_to_pwm(uint8_t duty_percent);
 bool msg_send_to_wifi(wifi_cmd_t cmd);
 
+/* 发送按键事件到指定队列 */
+bool msg_send_key_event(queue_id_t queue_id, uint8_t gpio_num, key_event_t event);
+
 bool msg_type_is_valid(msg_type_t type);
 
 #ifdef __cplusplus

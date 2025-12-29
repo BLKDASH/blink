@@ -20,31 +20,16 @@ static const char *TAG = "key_task";
 #define DOUBLE_CLICK_INTERVAL_MS 300
 #define CLICK_MAX_TIME_MS        500
 
-static uint8_t s_gpio_num;
-
-/* 发送按键事件到指定队列 */
-static bool send_key_event(queue_id_t queue_id, key_event_t event)
-{
-    QueueHandle_t queue = msg_queue_get(queue_id);
-    if (queue == NULL) {
-        return false;
-    }
-    msg_t msg = {
-        .type = MSG_TYPE_KEY,
-        .data.key = {
-            .gpio_num = s_gpio_num,
-            .event = event
-        }
-    };
-    return msg_queue_send(queue, &msg, 100);
-}
+/* 静态配置存储 */
+static key_task_config_t s_config;
 
 /**
  * @brief Key task function with gesture detection
  */
 static void key_task(void *pvParameters)
 {
-    uint8_t gpio_num = s_gpio_num;
+    uint8_t gpio_num = s_config.gpio_num;
+    key_event_callback_t callback = s_config.callback;
     
     key_state_t state = KEY_STATE_IDLE;
     uint8_t last_key_level = 1;
@@ -91,7 +76,9 @@ static void key_task(void *pvParameters)
                     TickType_t press_duration = current_tick - press_start_tick;
                     if (press_duration >= pdMS_TO_TICKS(LONG_PRESS_TIME_MS) && !long_press_sent) {
                         /* 超时则触发长按事件 */
-                        send_key_event(QUEUE_LED, KEY_EVENT_LONG_PRESS);
+                        if (callback) {
+                            callback(gpio_num, KEY_EVENT_LONG_PRESS);
+                        }
                         long_press_sent = true;  /* 标记长按事件已发送，避免重复触发 */
                     }
                 }
@@ -109,7 +96,9 @@ static void key_task(void *pvParameters)
                         state = KEY_STATE_DOUBLE_PRESSED;
                     } else {
                         /* 超过双击间隔，先发送单击事件，然后作为新的按下处理 */
-                        send_key_event(QUEUE_LED, KEY_EVENT_SINGLE_CLICK);
+                        if (callback) {
+                            callback(gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        }
                         press_start_tick = current_tick;
                         long_press_sent = false;
                         state = KEY_STATE_PRESSED;
@@ -120,7 +109,9 @@ static void key_task(void *pvParameters)
                     
                     /* 超过双击间隔仍未按下，判定为单击 */
                     if (wait_duration > pdMS_TO_TICKS(DOUBLE_CLICK_INTERVAL_MS)) {
-                        send_key_event(QUEUE_LED, KEY_EVENT_SINGLE_CLICK);
+                        if (callback) {
+                            callback(gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        }
                         state = KEY_STATE_IDLE;
                     }
                 }
@@ -130,8 +121,10 @@ static void key_task(void *pvParameters)
             case KEY_STATE_DOUBLE_PRESSED:
                 /* 检测到上升沿（第二次按下后释放），确认双击完成 */
                 if (current_key_level == 1 && last_key_level == 0) {
-                    /* 双击事件发送到PWM队列 */
-                    send_key_event(QUEUE_PWM, KEY_EVENT_DOUBLE_CLICK);
+                    /* 双击事件通过回调通知 */
+                    if (callback) {
+                        callback(gpio_num, KEY_EVENT_DOUBLE_CLICK);
+                    }
                     ESP_LOGI(TAG, "Double click detected");
                     state = KEY_STATE_IDLE;
                 }
@@ -149,9 +142,14 @@ static void key_task(void *pvParameters)
     }
 }
 
-BaseType_t key_task_create(uint8_t gpio_num)
+BaseType_t key_task_create(const key_task_config_t *config)
 {
-    s_gpio_num = gpio_num;
+    if (config == NULL) {
+        ESP_LOGE(TAG, "Invalid config: NULL");
+        return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
+    }
+
+    s_config = *config;
 
     BaseType_t result = xTaskCreate(
         key_task,
@@ -165,7 +163,7 @@ BaseType_t key_task_create(uint8_t gpio_num)
     if (result != pdPASS) {
         ESP_LOGE(TAG, "Failed to create key task");
     } else {
-        ESP_LOGI(TAG, "Key task created for GPIO %d", gpio_num);
+        ESP_LOGI(TAG, "Key task created for GPIO %d", config->gpio_num);
     }
 
     return result;
