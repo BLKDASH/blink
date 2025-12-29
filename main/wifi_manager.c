@@ -82,7 +82,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
 static void led_status_task(void *parm)
 {
-    uint8_t led_state = LED_OFF;
+    uint8_t led_state = LED_RED_OFF;
     
     ESP_LOGI(TAG, "LED status task started");
     
@@ -90,17 +90,17 @@ static void led_status_task(void *parm)
         EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
         
         if (bits & CONNECTED_BIT) {
-            msg_send_to_led(LED_RED_GPIO, LED_OFF);
+            msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
             ESP_LOGI(TAG, "WiFi connected, red LED off");
             break;
         }
         
         if (!(bits & SMARTCONFIG_RUNNING_BIT)) {
-            msg_send_to_led(LED_RED_GPIO, LED_OFF);
+            msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
             break;
         }
         
-        led_state = (led_state == LED_OFF) ? LED_ON : LED_OFF;
+        led_state = (led_state == LED_RED_OFF) ? LED_RED_ON : LED_RED_OFF;
         msg_send_to_led(LED_RED_GPIO, led_state);
         
         vTaskDelay(pdMS_TO_TICKS(200));

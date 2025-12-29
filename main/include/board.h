@@ -5,11 +5,14 @@
 
 // LED GPIO定义
 #define LED_RED_GPIO 11 // 低电平亮
-#define LED_GRE_GPIO 12 // 低电平亮
+#define LED_GRE_GPIO 12 // 高电平亮
 
 // LED状态定义（低电平有效）
-#define LED_ON  0
-#define LED_OFF 1
+#define LED_RED_ON  0
+#define LED_RED_OFF 1
+
+#define LED_GRE_ON  1
+#define LED_GRE_OFF 0
 
 // 按键
 #define KEY_GPIO 2

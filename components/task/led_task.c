@@ -19,8 +19,8 @@ static void led_task(void *pvParameters)
 {
     QueueHandle_t queue = msg_queue_get(QUEUE_LED);
     msg_t msg;
-    static uint8_t red_led_state = LED_OFF;
-    static uint8_t green_led_state = LED_ON;
+    static uint8_t red_led_state = LED_RED_OFF;
+    static uint8_t green_led_state = LED_GRE_ON;
 
     ESP_LOGI(TAG, "LED task started");
 
@@ -32,15 +32,15 @@ static void led_task(void *pvParameters)
                          msg.data.led.gpio_num, msg.data.led.state);
             } else if (msg.type == MSG_TYPE_KEY) {
                 if (msg.data.key.event == KEY_EVENT_SINGLE_CLICK) {
-                    red_led_state = (red_led_state == LED_OFF) ? LED_ON : LED_OFF;
+                    red_led_state = (red_led_state == LED_RED_OFF) ? LED_RED_ON : LED_RED_OFF;
                     gpio_set_level(LED_RED_GPIO, red_led_state);
-                    ESP_LOGI(TAG, "SC: RED LED toggled to %s", red_led_state == LED_ON ? "ON" : "OFF");
+                    ESP_LOGI(TAG, "SC: RED LED toggled to %s", red_led_state == LED_RED_ON ? "ON" : "OFF");
                 }
 
                 if (msg.data.key.event == KEY_EVENT_LONG_PRESS) {
-                    green_led_state = (green_led_state == LED_OFF) ? LED_ON : LED_OFF;
+                    green_led_state = (green_led_state == LED_GRE_OFF) ? LED_GRE_ON : LED_GRE_OFF;
                     gpio_set_level(LED_GRE_GPIO, green_led_state);
-                    ESP_LOGI(TAG, "LP: GREEN LED toggled to %s", green_led_state == LED_ON ? "ON" : "OFF");
+                    ESP_LOGI(TAG, "LP: GREEN LED toggled to %s", green_led_state == LED_GRE_ON ? "ON" : "OFF");
                 }
             } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);
