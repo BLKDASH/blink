@@ -137,7 +137,7 @@ static void smartconfig_task(void *parm)
                 vTaskDelete(s_led_blink_task_handle);
                 s_led_blink_task_handle = NULL;
             }
-            msg_send_to_led(LED_RED_GPIO, LED_OFF);
+            msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
             
             s_smartconfig_task_handle = NULL;
             vTaskDelete(NULL);
@@ -262,7 +262,7 @@ esp_err_t wifi_manager_clear_credentials(void)
         vTaskDelete(s_led_blink_task_handle);
         s_led_blink_task_handle = NULL;
     }
-    msg_send_to_led(LED_RED_GPIO, LED_OFF);
+    msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
     
     ret = esp_wifi_disconnect();
     if (ret != ESP_OK) {
