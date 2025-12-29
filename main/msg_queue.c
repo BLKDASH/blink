@@ -71,6 +71,8 @@ bool msg_queue_receive(QueueHandle_t queue, msg_t *msg, uint32_t timeout_ms)
     return (result == pdTRUE);
 }
 
+
+// 直通函数：LED控制
 bool msg_send_to_led(uint8_t gpio_num, uint8_t state)
 {
     QueueHandle_t queue = msg_queue_get(QUEUE_LED);
@@ -90,7 +92,8 @@ bool msg_send_to_led(uint8_t gpio_num, uint8_t state)
     return msg_queue_send(queue, &msg, 100);
 }
 
-bool msg_send_to_pwm(key_event_t event)
+// 直通函数：PWM控制
+bool msg_send_to_pwm(uint8_t duty_percent)
 {
     QueueHandle_t queue = msg_queue_get(QUEUE_PWM);
     if (queue == NULL) {
@@ -101,13 +104,14 @@ bool msg_send_to_pwm(key_event_t event)
     msg_t msg = {
         .type = MSG_TYPE_PWM,
         .data.pwm = {
-            .event = event
+            .duty_percent = duty_percent
         }
     };
 
     return msg_queue_send(queue, &msg, 100);
 }
 
+// 直通函数：WIFI cmd
 bool msg_send_to_wifi(wifi_cmd_t cmd)
 {
     QueueHandle_t queue = msg_queue_get(QUEUE_WIFI);

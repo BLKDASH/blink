@@ -53,7 +53,7 @@ static void pwm_task(void *pvParameters)
 
     while (1) {
         if (msg_queue_receive(pwm_queue, &msg, portMAX_DELAY)) {
-            if (msg.type == MSG_TYPE_PWM && msg.data.pwm.event == KEY_EVENT_DOUBLE_CLICK) {
+            if (msg.type == MSG_TYPE_KEY && msg.data.key.event == KEY_EVENT_DOUBLE_CLICK) {
                 /* 双击切换PWM高低档 */
                 pwm_high = !pwm_high;
                 uint8_t duty = pwm_high ? PWM_DUTY_HIGH : PWM_DUTY_LOW;
@@ -75,6 +75,11 @@ static void pwm_task(void *pvParameters)
                     msg_send_to_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
                     reset_counter(&double_click_counter);
                 }
+            } else if (msg.type == MSG_TYPE_PWM) {
+                /* 直接设置PWM占空比 */
+                uint8_t duty = msg.data.pwm.duty_percent;
+                pwm_set_duty(duty);
+                ESP_LOGI(TAG, "PWM set to %d%%", duty);
             } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);
             }

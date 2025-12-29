@@ -52,7 +52,7 @@ typedef struct {
 } key_msg_data_t;
 
 typedef struct {
-    key_event_t event;
+    uint8_t duty_percent;
 } pwm_msg_data_t;
 
 typedef enum {
@@ -86,7 +86,7 @@ bool msg_queue_receive(QueueHandle_t queue, msg_t *msg, uint32_t timeout_ms);
 
 /* 便捷发送函数 - 发送到指定队列 */
 bool msg_send_to_led(uint8_t gpio_num, uint8_t state);
-bool msg_send_to_pwm(key_event_t event);
+bool msg_send_to_pwm(uint8_t duty_percent);
 bool msg_send_to_wifi(wifi_cmd_t cmd);
 
 bool msg_type_is_valid(msg_type_t type);
