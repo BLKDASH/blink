@@ -7,7 +7,6 @@
 #define LED_TASK_H
 
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,10 +15,9 @@ extern "C" {
 /**
  * @brief 创建LED任务
  * 
- * @param queue LED消息队列句柄
  * @return pdPASS成功，其他失败
  */
-BaseType_t led_task_create(QueueHandle_t queue);
+BaseType_t led_task_create(void);
 
 #ifdef __cplusplus
 }

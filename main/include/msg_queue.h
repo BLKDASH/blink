@@ -5,10 +5,19 @@
 #include <stdbool.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/queue.h"
+#include "esp_err.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/* 队列ID枚举 */
+typedef enum {
+    QUEUE_LED = 0,
+    QUEUE_PWM,
+    QUEUE_WIFI,
+    QUEUE_MAX
+} queue_id_t;
 
 typedef enum {
     MSG_TYPE_NONE = 0,
@@ -66,13 +75,22 @@ typedef struct {
     } data;
 } msg_t;
 
-QueueHandle_t msg_queue_init(uint8_t queue_len);
+/* 初始化所有队列 */
+esp_err_t msg_queue_init_all(uint8_t queue_len);
+
+/* 获取指定队列句柄 */
+QueueHandle_t msg_queue_get(queue_id_t id);
+
+/* 队列操作函数 */
 bool msg_queue_send(QueueHandle_t queue, const msg_t *msg, uint32_t timeout_ms);
 bool msg_queue_receive(QueueHandle_t queue, msg_t *msg, uint32_t timeout_ms);
-bool msg_send_led(QueueHandle_t queue, uint8_t gpio_num, uint8_t state);
-bool msg_send_key(QueueHandle_t queue, uint8_t gpio_num, key_event_t event);
-bool msg_send_pwm(QueueHandle_t queue, uint8_t gpio_num, uint8_t duty_percent);
-bool msg_send_wifi(QueueHandle_t queue, wifi_cmd_t cmd);
+
+/* 便捷发送函数 - 自动获取对应队列 */
+bool msg_send_led(uint8_t gpio_num, uint8_t state);
+bool msg_send_key(uint8_t gpio_num, key_event_t event);
+bool msg_send_pwm(uint8_t gpio_num, uint8_t duty_percent);
+bool msg_send_wifi(wifi_cmd_t cmd);
+
 bool msg_type_is_valid(msg_type_t type);
 
 #ifdef __cplusplus

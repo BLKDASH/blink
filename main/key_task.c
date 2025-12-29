@@ -20,22 +20,14 @@ static const char *TAG = "key_task";
 #define DOUBLE_CLICK_INTERVAL_MS 300
 #define CLICK_MAX_TIME_MS        500
 
-typedef struct {
-    QueueHandle_t led_queue;
-    QueueHandle_t pwm_queue;
-    QueueHandle_t wifi_queue;
-    uint8_t gpio_num;
-} key_task_params_t;
-
-static key_task_params_t s_key_task_params;
+static uint8_t s_gpio_num;
 
 /**
  * @brief Key task function with gesture detection
  */
 static void key_task(void *pvParameters)
 {
-    key_task_params_t *params = (key_task_params_t *)pvParameters;
-    uint8_t gpio_num = params->gpio_num;
+    uint8_t gpio_num = s_gpio_num;
     
     key_state_t state = KEY_STATE_IDLE;
     uint8_t last_key_level = 1;
@@ -73,9 +65,8 @@ static void key_task(void *pvParameters)
                     TickType_t press_duration = current_tick - press_start_tick;
                     
                     if (press_duration >= pdMS_TO_TICKS(LONG_PRESS_TIME_MS) && !long_press_sent) {
-                        msg_send_key(params->led_queue, gpio_num, KEY_EVENT_LONG_PRESS);
+                        msg_send_key(gpio_num, KEY_EVENT_LONG_PRESS);
                         long_press_sent = true;
-                        // ESP_LOGI(TAG, "Long press detected on GPIO %d", gpio_num);
                     }
                 }
                 break;
@@ -88,8 +79,7 @@ static void key_task(void *pvParameters)
                         press_start_tick = current_tick;
                         state = KEY_STATE_DOUBLE_PRESSED;
                     } else {
-                        msg_send_key(params->led_queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
-                        // ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
+                        msg_send_key(gpio_num, KEY_EVENT_SINGLE_CLICK);
                         press_start_tick = current_tick;
                         long_press_sent = false;
                         state = KEY_STATE_PRESSED;
@@ -98,24 +88,17 @@ static void key_task(void *pvParameters)
                     TickType_t wait_duration = current_tick - release_tick;
                     
                     if (wait_duration > pdMS_TO_TICKS(DOUBLE_CLICK_INTERVAL_MS)) {
-                        msg_send_key(params->led_queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        msg_send_key(gpio_num, KEY_EVENT_SINGLE_CLICK);
                         state = KEY_STATE_IDLE;
-                        // ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
                     }
                 }
                 break;
 
             case KEY_STATE_DOUBLE_PRESSED:
                 if (current_key_level == 1 && last_key_level == 0) {
-                    /* 双击事件同时发送到pwm_queue和wifi_queue (Requirement 6.1) */
-                    if (params->pwm_queue != NULL) {
-                        msg_send_key(params->pwm_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
-                    }
-                    if (params->wifi_queue != NULL) {
-                        msg_send_key(params->wifi_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
-                    }
+                    /* 双击事件发送到PWM队列 */
+                    msg_send_pwm(gpio_num, 0);  /* 发送双击事件，由pwm_task处理 */
                     state = KEY_STATE_IDLE;
-                    // ESP_LOGI(TAG, "Double click detected on GPIO %d", gpio_num);
                 }
                 break;
 
@@ -129,23 +112,15 @@ static void key_task(void *pvParameters)
     }
 }
 
-BaseType_t key_task_create(QueueHandle_t led_queue, QueueHandle_t pwm_queue, QueueHandle_t wifi_queue, uint8_t gpio_num)
+BaseType_t key_task_create(uint8_t gpio_num)
 {
-    if (led_queue == NULL) {
-        ESP_LOGE(TAG, "Cannot create key task: led_queue is NULL");
-        return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
-    }
-
-    s_key_task_params.led_queue = led_queue;
-    s_key_task_params.pwm_queue = pwm_queue;
-    s_key_task_params.wifi_queue = wifi_queue;
-    s_key_task_params.gpio_num = gpio_num;
+    s_gpio_num = gpio_num;
 
     BaseType_t result = xTaskCreate(
         key_task,
         "key_task",
         KEY_TASK_STACK_SIZE,
-        (void *)&s_key_task_params,
+        NULL,
         KEY_TASK_PRIORITY,
         NULL
     );

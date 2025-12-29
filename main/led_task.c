@@ -17,7 +17,7 @@ static const char *TAG = "led_task";
 
 static void led_task(void *pvParameters)
 {
-    QueueHandle_t queue = (QueueHandle_t)pvParameters;
+    QueueHandle_t queue = msg_queue_get(QUEUE_LED);
     msg_t msg;
     static uint8_t led_state = 0;
     static uint8_t green_led_state = 1;
@@ -26,13 +26,11 @@ static void led_task(void *pvParameters)
 
     while (1) {
         if (msg_queue_receive(queue, &msg, portMAX_DELAY)) {
-            if (msg.type == MSG_TYPE_LED) 
-            {
+            if (msg.type == MSG_TYPE_LED) {
                 gpio_set_level(msg.data.led.gpio_num, msg.data.led.state);
                 ESP_LOGD(TAG, "LED GPIO %d set to %d", 
                          msg.data.led.gpio_num, msg.data.led.state);
-            } else if (msg.type == MSG_TYPE_KEY) 
-            {
+            } else if (msg.type == MSG_TYPE_KEY) {
                 if (msg.data.key.event == KEY_EVENT_SINGLE_CLICK) {
                     led_state = !led_state;
                     gpio_set_level(LED_RED_GPIO, led_state);
@@ -44,18 +42,18 @@ static void led_task(void *pvParameters)
                     gpio_set_level(LED_GRE_GPIO, green_led_state);
                     ESP_LOGI(TAG, "LP: GREEN LED toggled to %d", green_led_state);
                 }
-            } else 
-            {
+            } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);
             }
         }
     }
 }
 
-BaseType_t led_task_create(QueueHandle_t queue)
+BaseType_t led_task_create(void)
 {
+    QueueHandle_t queue = msg_queue_get(QUEUE_LED);
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Cannot create led task: queue is NULL");
+        ESP_LOGE(TAG, "Cannot create led task: queue not initialized");
         return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
     }
 
@@ -63,7 +61,7 @@ BaseType_t led_task_create(QueueHandle_t queue)
         led_task,
         "led_task",
         LED_TASK_STACK_SIZE,
-        (void *)queue,
+        NULL,
         LED_TASK_PRIORITY,
         NULL
     );

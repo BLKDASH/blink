@@ -3,22 +3,35 @@
 
 static const char *TAG = "msg_queue";
 
-QueueHandle_t msg_queue_init(uint8_t queue_len)
+/* 全局队列数组 */
+static QueueHandle_t s_queues[QUEUE_MAX] = {NULL};
+
+esp_err_t msg_queue_init_all(uint8_t queue_len)
 {
     if (queue_len == 0) {
         ESP_LOGE(TAG, "Invalid queue length: 0");
-        return NULL;
+        return ESP_ERR_INVALID_ARG;
     }
 
-    QueueHandle_t queue = xQueueCreate(queue_len, sizeof(msg_t));
-    
-    if (queue == NULL) {
-        ESP_LOGE(TAG, "Failed to create message queue with length %d", queue_len);
-        return NULL;
+    for (int i = 0; i < QUEUE_MAX; i++) {
+        s_queues[i] = xQueueCreate(queue_len, sizeof(msg_t));
+        if (s_queues[i] == NULL) {
+            ESP_LOGE(TAG, "Failed to create queue %d", i);
+            return ESP_ERR_NO_MEM;
+        }
     }
 
-    ESP_LOGI(TAG, "Message queue created with length %d", queue_len);
-    return queue;
+    ESP_LOGI(TAG, "All queues initialized with length %d", queue_len);
+    return ESP_OK;
+}
+
+QueueHandle_t msg_queue_get(queue_id_t id)
+{
+    if (id >= QUEUE_MAX) {
+        ESP_LOGE(TAG, "Invalid queue id: %d", id);
+        return NULL;
+    }
+    return s_queues[id];
 }
 
 bool msg_queue_send(QueueHandle_t queue, const msg_t *msg, uint32_t timeout_ms)
@@ -55,17 +68,14 @@ bool msg_queue_receive(QueueHandle_t queue, msg_t *msg, uint32_t timeout_ms)
 
     BaseType_t result = xQueueReceive(queue, msg, ticks_to_wait);
     
-    if (result != pdTRUE) {
-        return false;
-    }
-
-    return true;
+    return (result == pdTRUE);
 }
 
-bool msg_send_led(QueueHandle_t queue, uint8_t gpio_num, uint8_t state)
+bool msg_send_led(uint8_t gpio_num, uint8_t state)
 {
+    QueueHandle_t queue = msg_queue_get(QUEUE_LED);
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Invalid parameter: queue is NULL");
+        ESP_LOGE(TAG, "LED queue not initialized");
         return false;
     }
 
@@ -80,10 +90,11 @@ bool msg_send_led(QueueHandle_t queue, uint8_t gpio_num, uint8_t state)
     return msg_queue_send(queue, &msg, 100);
 }
 
-bool msg_send_key(QueueHandle_t queue, uint8_t gpio_num, key_event_t event)
+bool msg_send_key(uint8_t gpio_num, key_event_t event)
 {
+    QueueHandle_t queue = msg_queue_get(QUEUE_LED);
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Invalid parameter: queue is NULL");
+        ESP_LOGE(TAG, "LED queue not initialized");
         return false;
     }
 
@@ -98,10 +109,11 @@ bool msg_send_key(QueueHandle_t queue, uint8_t gpio_num, key_event_t event)
     return msg_queue_send(queue, &msg, 100);
 }
 
-bool msg_send_pwm(QueueHandle_t queue, uint8_t gpio_num, uint8_t duty_percent)
+bool msg_send_pwm(uint8_t gpio_num, uint8_t duty_percent)
 {
+    QueueHandle_t queue = msg_queue_get(QUEUE_PWM);
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Invalid parameter: queue is NULL");
+        ESP_LOGE(TAG, "PWM queue not initialized");
         return false;
     }
 
@@ -116,10 +128,11 @@ bool msg_send_pwm(QueueHandle_t queue, uint8_t gpio_num, uint8_t duty_percent)
     return msg_queue_send(queue, &msg, 100);
 }
 
-bool msg_send_wifi(QueueHandle_t queue, wifi_cmd_t cmd)
+bool msg_send_wifi(wifi_cmd_t cmd)
 {
+    QueueHandle_t queue = msg_queue_get(QUEUE_WIFI);
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Invalid parameter: queue is NULL");
+        ESP_LOGE(TAG, "WiFi queue not initialized");
         return false;
     }
 

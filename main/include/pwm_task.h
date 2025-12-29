@@ -7,7 +7,6 @@
 #define PWM_TASK_H
 
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,11 +15,9 @@ extern "C" {
 /**
  * @brief 创建PWM任务
  * 
- * @param pwm_queue PWM消息队列句柄
- * @param wifi_queue WiFi消息队列句柄（可为NULL）
  * @return pdPASS成功，其他失败
  */
-BaseType_t pwm_task_create(QueueHandle_t pwm_queue, QueueHandle_t wifi_queue);
+BaseType_t pwm_task_create(void);
 
 #ifdef __cplusplus
 }

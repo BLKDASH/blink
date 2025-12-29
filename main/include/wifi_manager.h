@@ -8,8 +8,6 @@
 
 #include <stdbool.h>
 #include "esp_err.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,13 +39,11 @@ bool wifi_manager_is_connected(void);
 esp_err_t wifi_manager_clear_credentials(void);
 
 /**
- * @brief 设置WiFi消息队列
+ * @brief 启动WiFi消息处理任务
  * 
- * 用于接收来自其他任务的WiFi控制消息
- * 
- * @param queue 消息队列句柄
+ * 创建任务监听WiFi消息队列，处理WiFi控制命令
  */
-void wifi_manager_set_queue(QueueHandle_t queue);
+void wifi_manager_start_msg_task(void);
 
 #ifdef __cplusplus
 }

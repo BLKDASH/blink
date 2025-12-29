@@ -8,7 +8,6 @@
 
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
-#include "freertos/queue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -18,15 +17,12 @@ extern "C" {
  * @brief Create the key scanning task
  * 
  * Creates a FreeRTOS task that scans the specified GPIO for key press
- * and release events, sending key messages to the queue.
+ * and release events, sending key messages to the appropriate queues.
  * 
- * @param led_queue Queue handle for sending LED-related key messages (single click, long press)
- * @param pwm_queue Queue handle for sending PWM-related key messages (double click)
- * @param wifi_queue Queue handle for sending WiFi-related key messages (double click)
  * @param gpio_num GPIO number of the key to scan
  * @return pdPASS on success, errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY on failure
  */
-BaseType_t key_task_create(QueueHandle_t led_queue, QueueHandle_t pwm_queue, QueueHandle_t wifi_queue, uint8_t gpio_num);
+BaseType_t key_task_create(uint8_t gpio_num);
 
 #ifdef __cplusplus
 }
