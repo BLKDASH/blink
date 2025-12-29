@@ -14,7 +14,7 @@ static const char *TAG = "pwm_task";
 #define PWM_TASK_STACK_SIZE 2048
 #define PWM_TASK_PRIORITY   5
 
-/* 双击计数器配置 */
+/* 双击计数器配置 - 连续双击触发WiFi凭据清除 */
 #define DOUBLE_CLICK_RESET_TIMEOUT_MS  3000
 #define DOUBLE_CLICK_TRIGGER_COUNT     2
 
@@ -46,21 +46,21 @@ static void pwm_task(void *pvParameters)
 {
     QueueHandle_t pwm_queue = msg_queue_get(QUEUE_PWM);
     msg_t msg;
-    static uint8_t pwm_high = 0;
+    bool pwm_high = false;
     double_click_counter_t double_click_counter = {0};
 
     ESP_LOGI(TAG, "PWM task started");
 
     while (1) {
         if (msg_queue_receive(pwm_queue, &msg, portMAX_DELAY)) {
-            if (msg.type == MSG_TYPE_PWM) {
-                /* 处理双击事件（从key_task发来） */
+            if (msg.type == MSG_TYPE_PWM && msg.data.pwm.event == KEY_EVENT_DOUBLE_CLICK) {
+                /* 双击切换PWM高低档 */
                 pwm_high = !pwm_high;
                 uint8_t duty = pwm_high ? PWM_DUTY_HIGH : PWM_DUTY_LOW;
                 pwm_set_duty(duty);
-                ESP_LOGI(TAG, "Double click: PWM toggled to %d%%", duty);
+                ESP_LOGI(TAG, "Double click: PWM set to %d%%", duty);
                 
-                /* 处理双击计数器 */
+                /* 双击计数器 - 连续双击触发WiFi凭据清除 */
                 if (check_counter_timeout(&double_click_counter)) {
                     ESP_LOGI(TAG, "Double click counter timeout, resetting");
                     reset_counter(&double_click_counter);
@@ -71,8 +71,8 @@ static void pwm_task(void *pvParameters)
                          double_click_counter.count, DOUBLE_CLICK_TRIGGER_COUNT);
                 
                 if (double_click_counter.count >= DOUBLE_CLICK_TRIGGER_COUNT) {
-                    ESP_LOGI(TAG, "Trigger reached, sending clear credentials");
-                    msg_send_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
+                    ESP_LOGI(TAG, "Trigger reached, clearing WiFi credentials");
+                    msg_send_to_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
                     reset_counter(&double_click_counter);
                 }
             } else {

@@ -82,7 +82,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
 static void led_status_task(void *parm)
 {
-    bool led_state = false;
+    uint8_t led_state = LED_OFF;
     
     ESP_LOGI(TAG, "LED status task started");
     
@@ -90,18 +90,18 @@ static void led_status_task(void *parm)
         EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
         
         if (bits & CONNECTED_BIT) {
-            msg_send_led(LED_RED_GPIO, 1);
+            msg_send_to_led(LED_RED_GPIO, LED_OFF);
             ESP_LOGI(TAG, "WiFi connected, red LED off");
             break;
         }
         
         if (!(bits & SMARTCONFIG_RUNNING_BIT)) {
-            msg_send_led(LED_RED_GPIO, 1);
+            msg_send_to_led(LED_RED_GPIO, LED_OFF);
             break;
         }
         
-        led_state = !led_state;
-        msg_send_led(LED_RED_GPIO, led_state ? 0 : 1);
+        led_state = (led_state == LED_OFF) ? LED_ON : LED_OFF;
+        msg_send_to_led(LED_RED_GPIO, led_state);
         
         vTaskDelay(pdMS_TO_TICKS(200));
     }
@@ -137,7 +137,7 @@ static void smartconfig_task(void *parm)
                 vTaskDelete(s_led_blink_task_handle);
                 s_led_blink_task_handle = NULL;
             }
-            msg_send_led(LED_RED_GPIO, 1);
+            msg_send_to_led(LED_RED_GPIO, LED_OFF);
             
             s_smartconfig_task_handle = NULL;
             vTaskDelete(NULL);
@@ -262,7 +262,7 @@ esp_err_t wifi_manager_clear_credentials(void)
         vTaskDelete(s_led_blink_task_handle);
         s_led_blink_task_handle = NULL;
     }
-    msg_send_led(LED_RED_GPIO, 1);
+    msg_send_to_led(LED_RED_GPIO, LED_OFF);
     
     ret = esp_wifi_disconnect();
     if (ret != ESP_OK) {

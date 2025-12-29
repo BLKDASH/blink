@@ -3,9 +3,13 @@
 
 #include "esp_err.h"
 
-// 新板子LED
-#define LED_RED_GPIO 11
-#define LED_GRE_GPIO 12
+// LED GPIO定义
+#define LED_RED_GPIO 11 // 低电平亮
+#define LED_GRE_GPIO 12 // 低电平亮
+
+// LED状态定义（低电平有效）
+#define LED_ON  0
+#define LED_OFF 1
 
 // 按键
 #define KEY_GPIO 2

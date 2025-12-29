@@ -21,6 +21,23 @@ static const char *TAG = "key_task";
 #define CLICK_MAX_TIME_MS        500
 
 static uint8_t s_gpio_num;
+static QueueHandle_t s_led_queue = NULL;
+
+/* 发送按键事件到LED队列 */
+static bool send_key_event(uint8_t gpio_num, key_event_t event)
+{
+    if (s_led_queue == NULL) {
+        return false;
+    }
+    msg_t msg = {
+        .type = MSG_TYPE_KEY,
+        .data.key = {
+            .gpio_num = gpio_num,
+            .event = event
+        }
+    };
+    return msg_queue_send(s_led_queue, &msg, 100);
+}
 
 /**
  * @brief Key task function with gesture detection
@@ -65,7 +82,7 @@ static void key_task(void *pvParameters)
                     TickType_t press_duration = current_tick - press_start_tick;
                     
                     if (press_duration >= pdMS_TO_TICKS(LONG_PRESS_TIME_MS) && !long_press_sent) {
-                        msg_send_key(gpio_num, KEY_EVENT_LONG_PRESS);
+                        send_key_event(gpio_num, KEY_EVENT_LONG_PRESS);
                         long_press_sent = true;
                     }
                 }
@@ -79,7 +96,7 @@ static void key_task(void *pvParameters)
                         press_start_tick = current_tick;
                         state = KEY_STATE_DOUBLE_PRESSED;
                     } else {
-                        msg_send_key(gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        send_key_event(gpio_num, KEY_EVENT_SINGLE_CLICK);
                         press_start_tick = current_tick;
                         long_press_sent = false;
                         state = KEY_STATE_PRESSED;
@@ -88,7 +105,7 @@ static void key_task(void *pvParameters)
                     TickType_t wait_duration = current_tick - release_tick;
                     
                     if (wait_duration > pdMS_TO_TICKS(DOUBLE_CLICK_INTERVAL_MS)) {
-                        msg_send_key(gpio_num, KEY_EVENT_SINGLE_CLICK);
+                        send_key_event(gpio_num, KEY_EVENT_SINGLE_CLICK);
                         state = KEY_STATE_IDLE;
                     }
                 }
@@ -97,7 +114,8 @@ static void key_task(void *pvParameters)
             case KEY_STATE_DOUBLE_PRESSED:
                 if (current_key_level == 1 && last_key_level == 0) {
                     /* 双击事件发送到PWM队列 */
-                    msg_send_pwm(gpio_num, 0);  /* 发送双击事件，由pwm_task处理 */
+                    msg_send_to_pwm(KEY_EVENT_DOUBLE_CLICK);
+                    ESP_LOGI(TAG, "Double click detected");
                     state = KEY_STATE_IDLE;
                 }
                 break;
@@ -115,6 +133,12 @@ static void key_task(void *pvParameters)
 BaseType_t key_task_create(uint8_t gpio_num)
 {
     s_gpio_num = gpio_num;
+    s_led_queue = msg_queue_get(QUEUE_LED);
+    
+    if (s_led_queue == NULL) {
+        ESP_LOGE(TAG, "Cannot create key task: LED queue not initialized");
+        return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
+    }
 
     BaseType_t result = xTaskCreate(
         key_task,

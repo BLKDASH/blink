@@ -20,8 +20,8 @@ void configure_led(void)
     /* Set the GPIO as a push/pull output */
     gpio_set_direction(LED_RED_GPIO, GPIO_MODE_OUTPUT);
     gpio_set_direction(LED_GRE_GPIO, GPIO_MODE_OUTPUT);
-    gpio_set_level(LED_RED_GPIO,1);//设置为高，使其默认灭灯
-    gpio_set_level(LED_GRE_GPIO,1);//设置为高，使其默认亮灯
+    gpio_set_level(LED_RED_GPIO, LED_OFF);  // 默认灭灯
+    gpio_set_level(LED_GRE_GPIO, LED_ON);   // 默认亮灯
 }
 
 void configure_key(void)
@@ -70,7 +70,7 @@ esp_err_t configure_pwm(void)
 
 esp_err_t pwm_set_duty(uint8_t duty_percent)
 {
-    // 钳位占空比到有效范围 0-100
+    // 有效范围 0-100
     if (duty_percent > 100) {
         ESP_LOGW(TAG, "Duty cycle %d%% out of range, clamping to 100%%", duty_percent);
         duty_percent = 100;
