@@ -18,8 +18,8 @@
 static const char *TAG = "main";
 
 /* Message queue handles */
-static QueueHandle_t s_led_queue = NULL;
-static QueueHandle_t s_pwm_queue = NULL;
+static QueueHandle_t s_gener_queue = NULL;
+static QueueHandle_t s_action_queue = NULL;
 
 #define MSG_QUEUE_LEN 10
 #define LED_BLINK_INTERVAL_MS 3000
@@ -37,14 +37,14 @@ void app_main(void)
     }
     
     /* 队列初始化 */
-    s_led_queue = msg_queue_init(MSG_QUEUE_LEN);
-    if (s_led_queue == NULL) {
+    s_gener_queue = msg_queue_init(MSG_QUEUE_LEN);
+    if (s_gener_queue == NULL) {
         ESP_LOGE(TAG, "Failed to initialize LED queue");
         return;
     }
     
-    s_pwm_queue = msg_queue_init(MSG_QUEUE_LEN);
-    if (s_pwm_queue == NULL) {
+    s_action_queue = msg_queue_init(MSG_QUEUE_LEN);
+    if (s_action_queue == NULL) {
         ESP_LOGE(TAG, "Failed to initialize PWM queue");
         return;
     }
@@ -52,17 +52,17 @@ void app_main(void)
 
 
     /* 创建任务 */
-    if (led_task_create(s_led_queue) != pdPASS) {
+    if (led_task_create(s_gener_queue) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create LED task");
         return;
     }
     
-    if (pwm_task_create(s_pwm_queue) != pdPASS) {
+    if (pwm_task_create(s_action_queue) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create PWM task");
         return;
     }
     
-    if (key_task_create(s_led_queue, s_pwm_queue, KEY_GPIO) != pdPASS) {
+    if (key_task_create(s_gener_queue, s_action_queue, KEY_GPIO) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create key task");
         return;
     }
@@ -73,7 +73,7 @@ void app_main(void)
     uint8_t led_state = 0;
     while (1) {
         led_state = !led_state;
-        msg_send_led(s_led_queue, LED_RED_GPIO, led_state);
+        msg_send_led(s_gener_queue, LED_RED_GPIO, led_state);
         vTaskDelay(pdMS_TO_TICKS(LED_BLINK_INTERVAL_MS));
     }
 }

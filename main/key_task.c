@@ -74,7 +74,7 @@ static void key_task(void *pvParameters)
                     if (press_duration >= pdMS_TO_TICKS(LONG_PRESS_TIME_MS) && !long_press_sent) {
                         msg_send_key(params->led_queue, gpio_num, KEY_EVENT_LONG_PRESS);
                         long_press_sent = true;
-                        ESP_LOGI(TAG, "Long press detected on GPIO %d", gpio_num);
+                        // ESP_LOGI(TAG, "Long press detected on GPIO %d", gpio_num);
                     }
                 }
                 break;
@@ -88,7 +88,7 @@ static void key_task(void *pvParameters)
                         state = KEY_STATE_DOUBLE_PRESSED;
                     } else {
                         msg_send_key(params->led_queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
-                        ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
+                        // ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
                         press_start_tick = current_tick;
                         long_press_sent = false;
                         state = KEY_STATE_PRESSED;
@@ -99,7 +99,7 @@ static void key_task(void *pvParameters)
                     if (wait_duration > pdMS_TO_TICKS(DOUBLE_CLICK_INTERVAL_MS)) {
                         msg_send_key(params->led_queue, gpio_num, KEY_EVENT_SINGLE_CLICK);
                         state = KEY_STATE_IDLE;
-                        ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
+                        // ESP_LOGI(TAG, "Single click detected on GPIO %d", gpio_num);
                     }
                 }
                 break;
@@ -110,7 +110,7 @@ static void key_task(void *pvParameters)
                         msg_send_key(params->pwm_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
                     }
                     state = KEY_STATE_IDLE;
-                    ESP_LOGI(TAG, "Double click detected on GPIO %d", gpio_num);
+                    // ESP_LOGI(TAG, "Double click detected on GPIO %d", gpio_num);
                 }
                 break;
 

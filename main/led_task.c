@@ -23,20 +23,29 @@ static void led_task(void *pvParameters)
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     msg_t msg;
     static uint8_t led_state = 0;
+    static uint8_t green_led_state = 1;
 
     ESP_LOGI(TAG, "LED task started");
 
     while (1) {
         if (msg_queue_receive(queue, &msg, portMAX_DELAY)) {
+            // LED直达消息
             if (msg.type == MSG_TYPE_LED) {
                 gpio_set_level(msg.data.led.gpio_num, msg.data.led.state);
                 ESP_LOGD(TAG, "LED GPIO %d set to %d", 
                          msg.data.led.gpio_num, msg.data.led.state);
+            // 按键消息
             } else if (msg.type == MSG_TYPE_KEY) {
                 if (msg.data.key.event == KEY_EVENT_SINGLE_CLICK) {
                     led_state = !led_state;
                     gpio_set_level(LED_RED_GPIO, led_state);
-                    ESP_LOGI(TAG, "Single click: LED toggled to %d", led_state);
+                    ESP_LOGI(TAG, "SC: RED LED toggled to %d", led_state);
+                }
+
+                if (msg.data.key.event == KEY_EVENT_LONG_PRESS) {
+                    green_led_state = !green_led_state;
+                    gpio_set_level(LED_GRE_GPIO, green_led_state);
+                    ESP_LOGI(TAG, "LP: GREEN LED toggled to %d", green_led_state);
                 }
             } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);

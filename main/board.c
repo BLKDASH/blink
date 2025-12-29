@@ -19,6 +19,9 @@ void configure_led(void)
     gpio_reset_pin(LED_GRE_GPIO);
     /* Set the GPIO as a push/pull output */
     gpio_set_direction(LED_RED_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_direction(LED_GRE_GPIO, GPIO_MODE_OUTPUT);
+    gpio_set_level(LED_RED_GPIO,1);//设置为高，使其默认灭灯
+    gpio_set_level(LED_GRE_GPIO,1);//设置为高，使其默认亮灯
 }
 
 void configure_key(void)

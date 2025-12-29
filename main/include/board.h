@@ -8,7 +8,7 @@
 #define LED_GRE_GPIO 12
 
 // 按键
-#define KEY_GPIO 15
+#define KEY_GPIO 2
 
 // PWM配置
 #define PWM_GPIO 13

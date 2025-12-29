@@ -1,8 +1,3 @@
-/**
- * @file msg_queue.c
- * @brief Message Queue System implementation
- */
-
 #include "msg_queue.h"
 #include "esp_log.h"
 
