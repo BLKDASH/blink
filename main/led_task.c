@@ -1,23 +1,28 @@
-#include "gener_task.h"
+/**
+ * @file led_task.c
+ * @brief LED Task implementation
+ */
+
+#include "led_task.h"
 #include "msg_queue.h"
 #include "board.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
 
-static const char *TAG = "gener_task";
+static const char *TAG = "led_task";
 
-#define GENER_TASK_STACK_SIZE 2048
-#define GENER_TASK_PRIORITY   5
+#define LED_TASK_STACK_SIZE 2048
+#define LED_TASK_PRIORITY   5
 
-static void gener_task(void *pvParameters)
+static void led_task(void *pvParameters)
 {
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     msg_t msg;
     static uint8_t led_state = 0;
     static uint8_t green_led_state = 1;
 
-    ESP_LOGI(TAG, "Gener task started");
+    ESP_LOGI(TAG, "LED task started");
 
     while (1) {
         if (msg_queue_receive(queue, &msg, portMAX_DELAY)) {
@@ -47,26 +52,26 @@ static void gener_task(void *pvParameters)
     }
 }
 
-BaseType_t gener_task_create(QueueHandle_t queue)
+BaseType_t led_task_create(QueueHandle_t queue)
 {
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Cannot create gener task: queue is NULL");
+        ESP_LOGE(TAG, "Cannot create led task: queue is NULL");
         return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
     }
 
     BaseType_t result = xTaskCreate(
-        gener_task,
-        "gener_task",
-        GENER_TASK_STACK_SIZE,
+        led_task,
+        "led_task",
+        LED_TASK_STACK_SIZE,
         (void *)queue,
-        GENER_TASK_PRIORITY,
+        LED_TASK_PRIORITY,
         NULL
     );
 
     if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create gener task");
+        ESP_LOGE(TAG, "Failed to create led task");
     } else {
-        ESP_LOGI(TAG, "Gener task created successfully");
+        ESP_LOGI(TAG, "LED task created successfully");
     }
 
     return result;

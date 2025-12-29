@@ -116,6 +116,23 @@ bool msg_send_pwm(QueueHandle_t queue, uint8_t gpio_num, uint8_t duty_percent)
     return msg_queue_send(queue, &msg, 100);
 }
 
+bool msg_send_wifi(QueueHandle_t queue, wifi_cmd_t cmd)
+{
+    if (queue == NULL) {
+        ESP_LOGE(TAG, "Invalid parameter: queue is NULL");
+        return false;
+    }
+
+    msg_t msg = {
+        .type = MSG_TYPE_WIFI,
+        .data.wifi = {
+            .cmd = cmd
+        }
+    };
+
+    return msg_queue_send(queue, &msg, 100);
+}
+
 bool msg_type_is_valid(msg_type_t type)
 {
     return (type > MSG_TYPE_NONE && type < MSG_TYPE_MAX);

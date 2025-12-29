@@ -23,6 +23,7 @@ static const char *TAG = "key_task";
 typedef struct {
     QueueHandle_t led_queue;
     QueueHandle_t pwm_queue;
+    QueueHandle_t wifi_queue;
     uint8_t gpio_num;
 } key_task_params_t;
 
@@ -106,8 +107,12 @@ static void key_task(void *pvParameters)
 
             case KEY_STATE_DOUBLE_PRESSED:
                 if (current_key_level == 1 && last_key_level == 0) {
+                    /* 双击事件同时发送到pwm_queue和wifi_queue (Requirement 6.1) */
                     if (params->pwm_queue != NULL) {
                         msg_send_key(params->pwm_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
+                    }
+                    if (params->wifi_queue != NULL) {
+                        msg_send_key(params->wifi_queue, gpio_num, KEY_EVENT_DOUBLE_CLICK);
                     }
                     state = KEY_STATE_IDLE;
                     // ESP_LOGI(TAG, "Double click detected on GPIO %d", gpio_num);
@@ -124,7 +129,7 @@ static void key_task(void *pvParameters)
     }
 }
 
-BaseType_t key_task_create(QueueHandle_t led_queue, QueueHandle_t pwm_queue, uint8_t gpio_num)
+BaseType_t key_task_create(QueueHandle_t led_queue, QueueHandle_t pwm_queue, QueueHandle_t wifi_queue, uint8_t gpio_num)
 {
     if (led_queue == NULL) {
         ESP_LOGE(TAG, "Cannot create key task: led_queue is NULL");
@@ -133,6 +138,7 @@ BaseType_t key_task_create(QueueHandle_t led_queue, QueueHandle_t pwm_queue, uin
 
     s_key_task_params.led_queue = led_queue;
     s_key_task_params.pwm_queue = pwm_queue;
+    s_key_task_params.wifi_queue = wifi_queue;
     s_key_task_params.gpio_num = gpio_num;
 
     BaseType_t result = xTaskCreate(
