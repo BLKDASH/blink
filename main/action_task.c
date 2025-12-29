@@ -1,29 +1,21 @@
-/**
- * @file pwm_task.c
- * @brief PWM Task implementation
- */
-
-#include "pwm_task.h"
+#include "action_task.h"
 #include "msg_queue.h"
 #include "board.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 
-static const char *TAG = "pwm_task";
+static const char *TAG = "action_task";
 
-#define PWM_TASK_STACK_SIZE 2048
-#define PWM_TASK_PRIORITY   5
+#define ACTION_TASK_STACK_SIZE 2048
+#define ACTION_TASK_PRIORITY   5
 
-/**
- * @brief PWM task function
- */
-static void pwm_task(void *pvParameters)
+static void action_task(void *pvParameters)
 {
     QueueHandle_t queue = (QueueHandle_t)pvParameters;
     msg_t msg;
     static uint8_t pwm_high = 0;
 
-    ESP_LOGI(TAG, "PWM task started");
+    ESP_LOGI(TAG, "Action task started");
 
     while (1) {
         if (msg_queue_receive(queue, &msg, portMAX_DELAY)) {
@@ -44,26 +36,26 @@ static void pwm_task(void *pvParameters)
     }
 }
 
-BaseType_t pwm_task_create(QueueHandle_t queue)
+BaseType_t action_task_create(QueueHandle_t queue)
 {
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Cannot create PWM task: queue is NULL");
+        ESP_LOGE(TAG, "Cannot create action task: queue is NULL");
         return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
     }
 
     BaseType_t result = xTaskCreate(
-        pwm_task,
-        "pwm_task",
-        PWM_TASK_STACK_SIZE,
+        action_task,
+        "action_task",
+        ACTION_TASK_STACK_SIZE,
         (void *)queue,
-        PWM_TASK_PRIORITY,
+        ACTION_TASK_PRIORITY,
         NULL
     );
 
     if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create PWM task");
+        ESP_LOGE(TAG, "Failed to create action task");
     } else {
-        ESP_LOGI(TAG, "PWM task created successfully");
+        ESP_LOGI(TAG, "Action task created successfully");
     }
 
     return result;
