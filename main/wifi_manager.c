@@ -117,7 +117,7 @@ static void smartconfig_task(void *parm)
     xEventGroupSetBits(s_wifi_event_group, SMARTCONFIG_RUNNING_BIT);
     xTaskCreate(led_status_task, "led_status_task", 2048, NULL, 2, &s_led_blink_task_handle);
     
-    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
+    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH_V2));
     
     smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
@@ -277,8 +277,20 @@ esp_err_t wifi_manager_clear_credentials(void)
     }
     ESP_LOGI(TAG, "WiFi credentials cleared from NVS");
     
-    xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
-    ESP_LOGI(TAG, "SmartConfig restarted");
+    // esp_wifi_restore() 会重置模式，需要重新设置为 STA
+    ret = esp_wifi_set_mode(WIFI_MODE_STA);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "WiFi set mode failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    
+    // 重新启动 WiFi，WIFI_EVENT_STA_START 事件会自动触发 smartconfig_task
+    ret = esp_wifi_start();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "WiFi restart failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    ESP_LOGI(TAG, "WiFi restarted, SmartConfig will start automatically");
     
     return ESP_OK;
 }
