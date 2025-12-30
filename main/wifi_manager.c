@@ -38,19 +38,55 @@ static void wifi_msg_task(void *parm);
 static void event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data);
 
+/* 重连计数器 */
+static int s_retry_count = 0;
+static const int MAX_RETRY_COUNT = 3;
+static bool s_has_saved_credentials = false;
+
 static void event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
-        xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
+        /* 检查是否有保存的 WiFi 凭据 */
+        wifi_config_t wifi_config;
+        esp_err_t ret = esp_wifi_get_config(WIFI_IF_STA, &wifi_config);
+        
+        if (ret == ESP_OK && strlen((char *)wifi_config.sta.ssid) > 0) {
+            /* 有保存的凭据，尝试连接 */
+            ESP_LOGI(TAG, "Found saved WiFi credentials, SSID: %s", wifi_config.sta.ssid);
+            s_has_saved_credentials = true;
+            s_retry_count = 0;
+            esp_wifi_connect();
+        } else {
+            /* 没有保存的凭据，启动 SmartConfig */
+            ESP_LOGI(TAG, "No saved WiFi credentials, starting SmartConfig...");
+            s_has_saved_credentials = false;
+            xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
+        }
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        esp_wifi_connect();
         xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
-        ESP_LOGI(TAG, "WiFi disconnected, attempting to reconnect...");
+        
+        if (s_has_saved_credentials && s_retry_count < MAX_RETRY_COUNT) {
+            s_retry_count++;
+            ESP_LOGI(TAG, "WiFi disconnected, retry %d/%d...", s_retry_count, MAX_RETRY_COUNT);
+            esp_wifi_connect();
+        } else if (s_has_saved_credentials && s_retry_count >= MAX_RETRY_COUNT) {
+            /* 重试次数用尽，启动 SmartConfig */
+            ESP_LOGW(TAG, "WiFi connection failed after %d retries, starting SmartConfig...", MAX_RETRY_COUNT);
+            s_has_saved_credentials = false;
+            if (s_smartconfig_task_handle == NULL) {
+                xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
+            }
+        } else {
+            /* SmartConfig 模式下断开，继续尝试连接 */
+            ESP_LOGI(TAG, "WiFi disconnected, attempting to reconnect...");
+            esp_wifi_connect();
+        }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "WiFi connected, IP: " IPSTR, IP2STR(&event->ip_info.ip));
         xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
+        s_retry_count = 0;  /* 连接成功，重置重试计数 */
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_SCAN_DONE) {
         ESP_LOGI(TAG, "SmartConfig scan done");
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_FOUND_CHANNEL) {
@@ -117,7 +153,7 @@ static void smartconfig_task(void *parm)
     xEventGroupSetBits(s_wifi_event_group, SMARTCONFIG_RUNNING_BIT);
     xTaskCreate(led_status_task, "led_status_task", 2048, NULL, 2, &s_led_blink_task_handle);
     
-    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH_V2));
+    ESP_ERROR_CHECK(esp_smartconfig_set_type(SC_TYPE_ESPTOUCH));
     
     smartconfig_start_config_t cfg = SMARTCONFIG_START_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_smartconfig_start(&cfg));
