@@ -57,7 +57,7 @@ static bt_cmd_buffer_t s_cmd_buffer = {0};
 static uint8_t own_addr_type;
 
 /* 前向声明 */
-static void handle_odtc_command(void);
+static void handle_open_command(void);
 static int gatt_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                                 struct ble_gatt_access_ctxt *ctxt, void *arg);
 static void ble_advertise(void);
@@ -87,8 +87,8 @@ static void parse_command(const uint8_t *data, uint16_t len)
         if (s_cmd_buffer.len >= 4) {
             char *cmd_start = s_cmd_buffer.buffer + s_cmd_buffer.len - 4;
             if (strncmp(cmd_start, BT_CMD_OPEN_DOOR, 4) == 0) {
-                ESP_LOGI(TAG, "ODTC command detected");
-                handle_odtc_command();
+                ESP_LOGI(TAG, "OPEN command detected");
+                handle_open_command();
                 s_cmd_buffer.len = 0;
                 memset(s_cmd_buffer.buffer, 0, sizeof(s_cmd_buffer.buffer));
             }
@@ -97,14 +97,14 @@ static void parse_command(const uint8_t *data, uint16_t len)
 }
 
 /**
- * @brief 处理ODTC开门指令
+ * @brief 处理OPEN开门指令
  */
-static void handle_odtc_command(void)
+static void handle_open_command(void)
 {
-    bool sent = msg_send_key_event(QUEUE_PWM, 0, KEY_EVENT_DOUBLE_CLICK);
+    bool sent = msg_send_pwm_open_door();
     
     if (sent) {
-        ESP_LOGI(TAG, "ODTC executed, door opening");
+        ESP_LOGI(TAG, "OPEN executed, door opening");
         bt_spp_send(BT_RSP_OK, strlen(BT_RSP_OK));
     } else {
         ESP_LOGE(TAG, "Failed to send to PWM queue");

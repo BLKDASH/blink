@@ -92,8 +92,8 @@ bool msg_send_to_led(uint8_t gpio_num, uint8_t state)
     return msg_queue_send(queue, &msg, 100);
 }
 
-// 直通函数：PWM控制
-bool msg_send_to_pwm(uint8_t duty_percent)
+// PWM开门命令
+bool msg_send_pwm_open_door(void)
 {
     QueueHandle_t queue = msg_queue_get(QUEUE_PWM);
     if (queue == NULL) {
@@ -104,7 +104,28 @@ bool msg_send_to_pwm(uint8_t duty_percent)
     msg_t msg = {
         .type = MSG_TYPE_PWM,
         .data.pwm = {
-            .duty_percent = duty_percent
+            .event = PWM_EVENT_OPEN_DOOR,
+            .angle = 0
+        }
+    };
+
+    return msg_queue_send(queue, &msg, 100);
+}
+
+// PWM设置角度
+bool msg_send_pwm_set_angle(uint8_t angle)
+{
+    QueueHandle_t queue = msg_queue_get(QUEUE_PWM);
+    if (queue == NULL) {
+        ESP_LOGE(TAG, "PWM queue not initialized");
+        return false;
+    }
+
+    msg_t msg = {
+        .type = MSG_TYPE_PWM,
+        .data.pwm = {
+            .event = PWM_EVENT_SET_ANGLE,
+            .angle = angle
         }
     };
 

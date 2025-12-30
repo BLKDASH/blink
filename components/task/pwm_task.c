@@ -8,6 +8,7 @@
 #include "board.h"
 #include "esp_log.h"
 #include "freertos/task.h"
+#include "freertos/timers.h"
 
 static const char *TAG = "servo_task";
 
@@ -22,6 +23,19 @@ typedef struct {
     uint8_t count;
     TickType_t last_tick;
 } double_click_counter_t;
+
+/* 自动关门定时器 */
+static TimerHandle_t s_close_door_timer = NULL;
+static bool s_door_open = false;
+
+static void close_door_timer_callback(TimerHandle_t xTimer)
+{
+    if (s_door_open) {
+        servo_set_angle(SERVO_ANGLE_POS1);
+        s_door_open = false;
+        ESP_LOGI(TAG, "Auto close door: Servo set to %d degrees", SERVO_ANGLE_POS1);
+    }
+}
 
 static bool check_counter_timeout(double_click_counter_t *counter)
 {
@@ -42,12 +56,30 @@ static void reset_counter(double_click_counter_t *counter)
     counter->last_tick = 0;
 }
 
+/* 非阻塞开门，定时器自动关门 */
+static void open_door_non_blocking(void)
+{
+    servo_set_angle(SERVO_ANGLE_POS2);
+    s_door_open = true;
+    ESP_LOGI(TAG, "Open door: Servo set to %d degrees", SERVO_ANGLE_POS2);
+    
+    /* 重置并启动关门定时器 */
+    if (s_close_door_timer != NULL) {
+        xTimerStop(s_close_door_timer, 0);
+        xTimerChangePeriod(s_close_door_timer, pdMS_TO_TICKS(OPEN_TIME), 0);
+        xTimerStart(s_close_door_timer, 0);
+    }
+}
+
 static void servo_task(void *pvParameters)
 {
     QueueHandle_t pwm_queue = msg_queue_get(QUEUE_PWM);
     msg_t msg;
-    bool servo_pos_high = false;  // false=位置1, true=位置2
     double_click_counter_t double_click_counter = {0};
+
+    /* 创建自动关门定时器 */
+    s_close_door_timer = xTimerCreate("close_door", pdMS_TO_TICKS(OPEN_TIME), 
+                                       pdFALSE, NULL, close_door_timer_callback);
 
     ESP_LOGI(TAG, "Servo task started (Pos1: %d°, Pos2: %d°)", 
              SERVO_ANGLE_POS1, SERVO_ANGLE_POS2);
@@ -55,19 +87,7 @@ static void servo_task(void *pvParameters)
     while (1) {
         if (msg_queue_receive(pwm_queue, &msg, portMAX_DELAY)) {
             if (msg.type == MSG_TYPE_KEY && msg.data.key.event == KEY_EVENT_DOUBLE_CLICK) {
-                // 开门（移动到位置2）
-                servo_pos_high = !servo_pos_high;
-                uint8_t angle = servo_pos_high ? SERVO_ANGLE_POS2 : SERVO_ANGLE_POS1;
-                servo_set_angle(angle);
-                ESP_LOGI(TAG, "Double click: Servo set to %d degrees", angle);
-                vTaskDelay(pdMS_TO_TICKS(OPEN_TIME));
-                // 2秒后关门（移动到位置1）
-                servo_pos_high = !servo_pos_high;
-                angle = servo_pos_high ? SERVO_ANGLE_POS2 : SERVO_ANGLE_POS1;
-                servo_set_angle(angle);
-                ESP_LOGI(TAG, "Double click: Servo set to %d degrees", angle);
-                
-                /* 双击计数器 - 连续双击触发WiFi凭据清除 */
+                /* 双击计数器 - 先处理计数 */
                 if (check_counter_timeout(&double_click_counter)) {
                     ESP_LOGI(TAG, "Double click counter timeout, resetting");
                     reset_counter(&double_click_counter);
@@ -82,12 +102,20 @@ static void servo_task(void *pvParameters)
                     msg_send_to_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
                     reset_counter(&double_click_counter);
                 }
+                
+                /* 非阻塞开门 */
+                open_door_non_blocking();
             } else if (msg.type == MSG_TYPE_PWM) {
-                /* 直接设置舵机角度 (复用pwm消息，duty_percent作为角度) */
-                uint8_t angle = msg.data.pwm.duty_percent;
-                if (angle > 180) angle = 180;
-                servo_set_angle(angle);
-                ESP_LOGI(TAG, "Servo set to %d degrees", angle);
+                if (msg.data.pwm.event == PWM_EVENT_OPEN_DOOR) {
+                    /* 蓝牙开门命令 - 非阻塞 */
+                    open_door_non_blocking();
+                } else if (msg.data.pwm.event == PWM_EVENT_SET_ANGLE) {
+                    /* 直接设置舵机角度 */
+                    uint8_t angle = msg.data.pwm.angle;
+                    if (angle > 180) angle = 180;
+                    servo_set_angle(angle);
+                    ESP_LOGI(TAG, "Servo set to %d degrees", angle);
+                }
             } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);
             }
