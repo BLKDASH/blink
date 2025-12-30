@@ -1,4 +1,4 @@
-idf_component_register(SRCS "wifi_manager.c" "main.c" "board.c" "msg_queue.c"
+idf_component_register(SRCS "bt_spp.c" "wifi_manager.c" "main.c" "board.c" "msg_queue.c"
                        INCLUDE_DIRS "./include"
-                       REQUIRES driver esp_wifi esp_netif nvs_flash esp_event
+                       REQUIRES driver esp_wifi esp_netif nvs_flash esp_event bt
                        PRIV_REQUIRES task)

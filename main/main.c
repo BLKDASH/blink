@@ -8,6 +8,7 @@
 #include "key_task.h"
 #include "pwm_task.h"
 #include "wifi_manager.h"
+#include "bt_spp.h"
 
 static const char *TAG = "main";
 
@@ -60,6 +61,11 @@ void app_main(void)
     }
     // wifi消息处理
     wifi_manager_start_msg_task();
+
+    // 蓝牙SPP服务初始化
+    if (bt_spp_init() != ESP_OK) {
+        ESP_LOGW(TAG, "Bluetooth SPP init failed, continuing without BT");
+    }
 
     // 创建业务任务
     if (led_task_create() != pdPASS) {
