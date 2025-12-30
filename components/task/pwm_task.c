@@ -1,6 +1,6 @@
 /**
  * @file pwm_task.c
- * @brief PWM Task implementation
+ * @brief MG995舵机控制任务 - 双击切换两个固定角度
  */
 
 #include "pwm_task.h"
@@ -9,13 +9,13 @@
 #include "esp_log.h"
 #include "freertos/task.h"
 
-static const char *TAG = "pwm_task";
+static const char *TAG = "servo_task";
 
-#define PWM_TASK_STACK_SIZE 2048
-#define PWM_TASK_PRIORITY   5
+#define SERVO_TASK_STACK_SIZE 2048
+#define SERVO_TASK_PRIORITY   5
 
 /* 双击计数器配置 - 连续双击触发WiFi凭据清除 */
-#define DOUBLE_CLICK_RESET_TIMEOUT_MS  3000
+#define DOUBLE_CLICK_RESET_TIMEOUT_MS  2000
 #define DOUBLE_CLICK_TRIGGER_COUNT     2
 
 typedef struct {
@@ -42,23 +42,30 @@ static void reset_counter(double_click_counter_t *counter)
     counter->last_tick = 0;
 }
 
-static void pwm_task(void *pvParameters)
+static void servo_task(void *pvParameters)
 {
     QueueHandle_t pwm_queue = msg_queue_get(QUEUE_PWM);
     msg_t msg;
-    bool pwm_high = false;
+    bool servo_pos_high = false;  // false=位置1, true=位置2
     double_click_counter_t double_click_counter = {0};
 
-    ESP_LOGI(TAG, "PWM task started");
+    ESP_LOGI(TAG, "Servo task started (Pos1: %d°, Pos2: %d°)", 
+             SERVO_ANGLE_POS1, SERVO_ANGLE_POS2);
 
     while (1) {
         if (msg_queue_receive(pwm_queue, &msg, portMAX_DELAY)) {
             if (msg.type == MSG_TYPE_KEY && msg.data.key.event == KEY_EVENT_DOUBLE_CLICK) {
-                /* 双击切换PWM高低档 */
-                pwm_high = !pwm_high;
-                uint8_t duty = pwm_high ? PWM_DUTY_HIGH : PWM_DUTY_LOW;
-                pwm_set_duty(duty);
-                ESP_LOGI(TAG, "Double click: PWM set to %d%%", duty);
+                // 开门（移动到位置2）
+                servo_pos_high = !servo_pos_high;
+                uint8_t angle = servo_pos_high ? SERVO_ANGLE_POS2 : SERVO_ANGLE_POS1;
+                servo_set_angle(angle);
+                ESP_LOGI(TAG, "Double click: Servo set to %d degrees", angle);
+                vTaskDelay(pdMS_TO_TICKS(OPEN_TIME));
+                // 2秒后关门（移动到位置1）
+                servo_pos_high = !servo_pos_high;
+                angle = servo_pos_high ? SERVO_ANGLE_POS2 : SERVO_ANGLE_POS1;
+                servo_set_angle(angle);
+                ESP_LOGI(TAG, "Double click: Servo set to %d degrees", angle);
                 
                 /* 双击计数器 - 连续双击触发WiFi凭据清除 */
                 if (check_counter_timeout(&double_click_counter)) {
@@ -76,10 +83,11 @@ static void pwm_task(void *pvParameters)
                     reset_counter(&double_click_counter);
                 }
             } else if (msg.type == MSG_TYPE_PWM) {
-                /* 直接设置PWM占空比 */
-                uint8_t duty = msg.data.pwm.duty_percent;
-                pwm_set_duty(duty);
-                ESP_LOGI(TAG, "PWM set to %d%%", duty);
+                /* 直接设置舵机角度 (复用pwm消息，duty_percent作为角度) */
+                uint8_t angle = msg.data.pwm.duty_percent;
+                if (angle > 180) angle = 180;
+                servo_set_angle(angle);
+                ESP_LOGI(TAG, "Servo set to %d degrees", angle);
             } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);
             }
@@ -91,23 +99,23 @@ BaseType_t pwm_task_create(void)
 {
     QueueHandle_t queue = msg_queue_get(QUEUE_PWM);
     if (queue == NULL) {
-        ESP_LOGE(TAG, "Cannot create pwm task: queue not initialized");
+        ESP_LOGE(TAG, "Cannot create servo task: queue not initialized");
         return errCOULD_NOT_ALLOCATE_REQUIRED_MEMORY;
     }
 
     BaseType_t result = xTaskCreate(
-        pwm_task,
-        "pwm_task",
-        PWM_TASK_STACK_SIZE,
+        servo_task,
+        "servo_task",
+        SERVO_TASK_STACK_SIZE,
         NULL,
-        PWM_TASK_PRIORITY,
+        SERVO_TASK_PRIORITY,
         NULL
     );
 
     if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create pwm task");
+        ESP_LOGE(TAG, "Failed to create servo task");
     } else {
-        ESP_LOGI(TAG, "PWM task created successfully");
+        ESP_LOGI(TAG, "Servo task created successfully");
     }
 
     return result;

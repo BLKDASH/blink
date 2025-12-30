@@ -28,7 +28,7 @@ static void key_event_handler(uint8_t gpio_num, key_event_t event)
             msg_send_key_event(QUEUE_LED, gpio_num, event);
             break;
         case KEY_EVENT_DOUBLE_CLICK:
-            // 双击：切换PWM档位
+            // 双击：切换舵机位置
             msg_send_key_event(QUEUE_PWM, gpio_num, event);
             break;
         default:
@@ -44,8 +44,8 @@ void app_main(void)
     configure_led();
     configure_key();
     
-    if (configure_pwm() != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to configure PWM");
+    if (configure_servo() != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to configure servo");
     }
     
     // 消息队列初始化

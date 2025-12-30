@@ -2,15 +2,26 @@
 #include "driver/gpio.h"
 #include "driver/ledc.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define TAG "BOARD"
 
-// LEDC配置常量
+// LEDC配置常量 - 用于MG995舵机控制
 #define LEDC_TIMER          LEDC_TIMER_0
 #define LEDC_MODE           LEDC_LOW_SPEED_MODE
 #define LEDC_CHANNEL        LEDC_CHANNEL_0
-#define LEDC_DUTY_RES       LEDC_TIMER_10_BIT   // 10位分辨率 (0-1023)
-#define LEDC_DUTY_MAX       1023                // 2^10 - 1
+#define LEDC_DUTY_RES       LEDC_TIMER_14_BIT   // 14位分辨率，提高舵机控制精度
+#define LEDC_DUTY_MAX       16383               // 2^14 - 1
+
+// 舵机平滑移动参数
+#define SERVO_STEP_DELAY_MS 20      // 每步延时(ms)，越大越慢
+#define SERVO_STEP_ANGLE    2       // 每步角度增量，越小越平滑
+
+static uint8_t s_current_angle = 0; // 记录当前角度
+
+// 前向声明
+static esp_err_t servo_set_angle_direct(uint8_t angle);
 
 void configure_led(void)
 {
@@ -32,14 +43,14 @@ void configure_key(void)
     gpio_set_pull_mode(KEY_GPIO, GPIO_FLOATING);
 }
 
-esp_err_t configure_pwm(void)
+esp_err_t configure_servo(void)
 {
-    // 配置LEDC Timer
+    // 配置LEDC Timer - 50Hz用于舵机控制
     ledc_timer_config_t timer_conf = {
         .speed_mode       = LEDC_MODE,
         .timer_num        = LEDC_TIMER,
         .duty_resolution  = LEDC_DUTY_RES,
-        .freq_hz          = PWM_FREQ_HZ,
+        .freq_hz          = SERVO_FREQ_HZ,
         .clk_cfg          = LEDC_AUTO_CLK
     };
     esp_err_t ret = ledc_timer_config(&timer_conf);
@@ -54,8 +65,8 @@ esp_err_t configure_pwm(void)
         .channel        = LEDC_CHANNEL,
         .timer_sel      = LEDC_TIMER,
         .intr_type      = LEDC_INTR_DISABLE,
-        .gpio_num       = PWM_GPIO,
-        .duty           = 0,    // 初始占空比为0%
+        .gpio_num       = SERVO_GPIO,
+        .duty           = 0,
         .hpoint         = 0
     };
     ret = ledc_channel_config(&channel_conf);
@@ -64,35 +75,75 @@ esp_err_t configure_pwm(void)
         return ret;
     }
 
-    ESP_LOGI(TAG, "PWM configured on GPIO%d at %dHz", PWM_GPIO, PWM_FREQ_HZ);
+    // 初始化到位置1（直接设置，不走平滑）
+    servo_set_angle_direct(SERVO_ANGLE_POS1);
+    s_current_angle = SERVO_ANGLE_POS1;
+
+    ESP_LOGI(TAG, "MG995 Servo configured on GPIO%d at %dHz", SERVO_GPIO, SERVO_FREQ_HZ);
     return ESP_OK;
 }
 
-esp_err_t pwm_set_duty(uint8_t duty_percent)
+/**
+ * @brief 直接设置舵机角度（无平滑过渡）
+ */
+static esp_err_t servo_set_angle_direct(uint8_t angle)
 {
-    // 有效范围 0-100
-    if (duty_percent > 100) {
-        ESP_LOGW(TAG, "Duty cycle %d%% out of range, clamping to 100%%", duty_percent);
-        duty_percent = 100;
+    if (angle > SERVO_MAX_ANGLE) {
+        angle = SERVO_MAX_ANGLE;
     }
 
-    // 将百分比转换为LEDC duty值 (0-8191)
-    uint32_t duty = (duty_percent * LEDC_DUTY_MAX) / 100;
+    // 计算脉宽 (微秒): 线性映射 angle -> [500us, 2500us]
+    uint32_t pulse_width_us = SERVO_MIN_PULSEWIDTH_US + 
+        (angle * (SERVO_MAX_PULSEWIDTH_US - SERVO_MIN_PULSEWIDTH_US)) / SERVO_MAX_ANGLE;
 
-    // 设置占空比
+    // 将脉宽转换为LEDC duty值
+    uint32_t duty = (pulse_width_us * LEDC_DUTY_MAX) / 20000;
+
     esp_err_t ret = ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, duty);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to set LEDC duty: %s", esp_err_to_name(ret));
-        return ret;
+    if (ret != ESP_OK) return ret;
+
+    return ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+}
+
+esp_err_t servo_set_angle(uint8_t target_angle)
+{
+    // 角度范围限制 0-180
+    if (target_angle > SERVO_MAX_ANGLE) {
+        ESP_LOGW(TAG, "Angle %d out of range, clamping to %d", target_angle, SERVO_MAX_ANGLE);
+        target_angle = SERVO_MAX_ANGLE;
     }
 
-    // 更新占空比
-    ret = ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
-    if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to update LEDC duty: %s", esp_err_to_name(ret));
-        return ret;
+    ESP_LOGI(TAG, "Servo moving: %d -> %d degrees", s_current_angle, target_angle);
+
+    // 平滑过渡到目标角度
+    while (s_current_angle != target_angle) {
+        if (s_current_angle < target_angle) {
+            // 向上移动
+            s_current_angle += SERVO_STEP_ANGLE;
+            if (s_current_angle > target_angle) {
+                s_current_angle = target_angle;
+            }
+        } else {
+            // 向下移动
+            if (s_current_angle < SERVO_STEP_ANGLE) {
+                s_current_angle = 0;
+            } else {
+                s_current_angle -= SERVO_STEP_ANGLE;
+            }
+            if (s_current_angle < target_angle) {
+                s_current_angle = target_angle;
+            }
+        }
+
+        esp_err_t ret = servo_set_angle_direct(s_current_angle);
+        if (ret != ESP_OK) {
+            ESP_LOGE(TAG, "Failed to set servo angle");
+            return ret;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(SERVO_STEP_DELAY_MS));
     }
 
-    ESP_LOGI(TAG, "PWM duty set to %d%%", duty_percent);
+    ESP_LOGI(TAG, "Servo reached %d degrees", s_current_angle);
     return ESP_OK;
 }

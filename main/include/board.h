@@ -17,27 +17,36 @@
 // 按键
 #define KEY_GPIO 2
 
-// PWM配置
-#define PWM_GPIO 13
-#define PWM_FREQ_HZ 50          // 50Hz
-#define PWM_DUTY_LOW 20         // 低档占空比 20%
-#define PWM_DUTY_HIGH 80        // 高档占空比 80%
+// MG995舵机配置 (GPIO13)
+#define SERVO_GPIO          13
+#define SERVO_FREQ_HZ       50      // 舵机标准频率50Hz (周期20ms)
+
+// MG995舵机角度配置 - 双击切换的两个固定角度
+#define SERVO_ANGLE_POS1    135       // 位置1: 135度
+#define SERVO_ANGLE_POS2    45      // 位置2: 45度
+
+#define OPEN_TIME 2000 //开门持续时间:2s
+
+// MG995舵机脉宽范围 (微秒)
+#define SERVO_MIN_PULSEWIDTH_US     500     // 0度对应脉宽 0.5ms
+#define SERVO_MAX_PULSEWIDTH_US     2500    // 180度对应脉宽 2.5ms
+#define SERVO_MAX_ANGLE             180     // 最大角度
 
 void configure_led(void);
 void configure_key(void);
 
 /**
- * @brief 初始化PWM输出
+ * @brief 初始化MG995舵机PWM输出
  * @return ESP_OK成功, 其他失败
  */
-esp_err_t configure_pwm(void);
+esp_err_t configure_servo(void);
 
 /**
- * @brief 设置PWM占空比
- * @param duty_percent 占空比 (0-100), 超出范围会被钳位
+ * @brief 设置舵机角度
+ * @param angle 角度 (0-180), 超出范围会被钳位
  * @return ESP_OK成功, 其他失败
  */
-esp_err_t pwm_set_duty(uint8_t duty_percent);
+esp_err_t servo_set_angle(uint8_t angle);
 
 
 #endif
