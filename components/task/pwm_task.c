@@ -6,6 +6,7 @@
 #include "pwm_task.h"
 #include "msg_queue.h"
 #include "board.h"
+#include "ha_mqtt.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "freertos/timers.h"
@@ -34,6 +35,9 @@ static void close_door_timer_callback(TimerHandle_t xTimer)
         servo_set_angle(SERVO_ANGLE_POS1);
         s_door_open = false;
         ESP_LOGI(TAG, "Auto close door: Servo set to %d degrees", SERVO_ANGLE_POS1);
+        
+        /* 发布门状态到 MQTT */
+        ha_mqtt_publish_door_state(false);
     }
 }
 
@@ -63,11 +67,32 @@ static void open_door_non_blocking(void)
     s_door_open = true;
     ESP_LOGI(TAG, "Open door: Servo set to %d degrees", SERVO_ANGLE_POS2);
     
+    /* 发布门状态到 MQTT */
+    ha_mqtt_publish_door_state(true);
+    
     /* 重置并启动关门定时器 */
     if (s_close_door_timer != NULL) {
         xTimerStop(s_close_door_timer, 0);
         xTimerChangePeriod(s_close_door_timer, pdMS_TO_TICKS(OPEN_TIME), 0);
         xTimerStart(s_close_door_timer, 0);
+    }
+}
+
+/* 关门操作 */
+static void close_door(void)
+{
+    /* 停止自动关门定时器 */
+    if (s_close_door_timer != NULL) {
+        xTimerStop(s_close_door_timer, 0);
+    }
+    
+    if (s_door_open) {
+        servo_set_angle(SERVO_ANGLE_POS1);
+        s_door_open = false;
+        ESP_LOGI(TAG, "Close door: Servo set to %d degrees", SERVO_ANGLE_POS1);
+        
+        /* 发布门状态到 MQTT */
+        ha_mqtt_publish_door_state(false);
     }
 }
 
@@ -103,6 +128,10 @@ static void servo_task(void *pvParameters)
                     reset_counter(&double_click_counter);
                 }
                 
+
+            }
+            else if (msg.type == MSG_TYPE_KEY && msg.data.key.event == KEY_EVENT_SINGLE_CLICK)
+            {
                 /* 非阻塞开门 */
                 open_door_non_blocking();
             } else if (msg.type == MSG_TYPE_PWM) {
@@ -115,6 +144,15 @@ static void servo_task(void *pvParameters)
                     if (angle > 180) angle = 180;
                     servo_set_angle(angle);
                     ESP_LOGI(TAG, "Servo set to %d degrees", angle);
+                }
+            } else if (msg.type == MSG_TYPE_MQTT) {
+                /* MQTT 开门/关门命令 */
+                if (msg.data.mqtt.cmd == MQTT_CMD_DOOR_ON) {
+                    ESP_LOGI(TAG, "MQTT door ON command received");
+                    open_door_non_blocking();
+                } else if (msg.data.mqtt.cmd == MQTT_CMD_DOOR_OFF) {
+                    ESP_LOGI(TAG, "MQTT door OFF command received");
+                    close_door();
                 }
             } else {
                 ESP_LOGW(TAG, "Received unknown message type: %d", msg.type);

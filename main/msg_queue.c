@@ -171,6 +171,25 @@ bool msg_send_key_event(queue_id_t queue_id, uint8_t gpio_num, key_event_t event
     return msg_queue_send(queue, &msg, 100);
 }
 
+// MQTT 开门命令发送函数
+bool msg_send_mqtt_door_cmd(mqtt_cmd_t cmd)
+{
+    QueueHandle_t queue = msg_queue_get(QUEUE_PWM);
+    if (queue == NULL) {
+        ESP_LOGE(TAG, "PWM queue not initialized");
+        return false;
+    }
+
+    msg_t msg = {
+        .type = MSG_TYPE_MQTT,
+        .data.mqtt = {
+            .cmd = cmd
+        }
+    };
+
+    return msg_queue_send(queue, &msg, 100);
+}
+
 bool msg_type_is_valid(msg_type_t type)
 {
     return (type > MSG_TYPE_NONE && type < MSG_TYPE_MAX);

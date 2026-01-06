@@ -21,6 +21,7 @@ typedef enum {
     QUEUE_LED = 0,
     QUEUE_PWM,
     QUEUE_WIFI,
+    QUEUE_MQTT,    /* MQTT 队列 */
     QUEUE_MAX
 } queue_id_t;
 
@@ -30,6 +31,7 @@ typedef enum {
     MSG_TYPE_KEY,
     MSG_TYPE_PWM,
     MSG_TYPE_WIFI,
+    MSG_TYPE_MQTT,  /* MQTT 消息类型 */
     MSG_TYPE_MAX
 } msg_type_t;
 
@@ -74,6 +76,15 @@ typedef struct {
     wifi_cmd_t cmd;
 } wifi_msg_data_t;
 
+typedef enum {
+    MQTT_CMD_DOOR_ON = 0,
+    MQTT_CMD_DOOR_OFF,
+} mqtt_cmd_t;
+
+typedef struct {
+    mqtt_cmd_t cmd;
+} mqtt_msg_data_t;
+
 typedef struct {
     msg_type_t type;
     union {
@@ -81,6 +92,7 @@ typedef struct {
         key_msg_data_t key;
         pwm_msg_data_t pwm;
         wifi_msg_data_t wifi;
+        mqtt_msg_data_t mqtt;
         uint8_t raw[8];
     } data;
 } msg_t;
@@ -100,6 +112,7 @@ bool msg_send_to_led(uint8_t gpio_num, uint8_t state);
 bool msg_send_pwm_open_door(void);
 bool msg_send_pwm_set_angle(uint8_t angle);
 bool msg_send_to_wifi(wifi_cmd_t cmd);
+bool msg_send_mqtt_door_cmd(mqtt_cmd_t cmd);
 
 /* 发送按键事件到指定队列 */
 bool msg_send_key_event(queue_id_t queue_id, uint8_t gpio_num, key_event_t event);

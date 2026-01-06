@@ -22,8 +22,8 @@
 #define SERVO_FREQ_HZ       50      // 舵机标准频率50Hz (周期20ms)
 
 // MG995舵机角度配置 - 双击切换的两个固定角度
-#define SERVO_ANGLE_POS1    45       // 位置1: 135度
-#define SERVO_ANGLE_POS2    135      // 位置2: 45度
+#define SERVO_ANGLE_POS1    135       // 位置1: 135度
+#define SERVO_ANGLE_POS2    80      // 位置2: 45度
 
 #define OPEN_TIME 2000 //开门持续时间:2s
 
