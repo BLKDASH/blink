@@ -13,6 +13,7 @@
 #include "freertos/task.h"
 
 #include "esp_log.h"
+#include "esp_system.h"
 #include "nvs_flash.h"
 
 /* NimBLE headers for ESP-IDF 5.x */
@@ -58,6 +59,7 @@ static uint8_t own_addr_type;
 
 /* 前向声明 */
 static void handle_open_command(void);
+static void handle_restart_command(void);
 static int gatt_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                                 struct ble_gatt_access_ctxt *ctxt, void *arg);
 static void ble_advertise(void);
@@ -84,6 +86,19 @@ static void parse_command(const uint8_t *data, uint16_t len)
         s_cmd_buffer.buffer[s_cmd_buffer.len++] = c;
         s_cmd_buffer.buffer[s_cmd_buffer.len] = '\0';
         
+        /* 检查 RESTART 命令 (7 字符) */
+        if (s_cmd_buffer.len >= 7) {
+            char *cmd_start = s_cmd_buffer.buffer + s_cmd_buffer.len - 7;
+            if (strncmp(cmd_start, BT_CMD_RESTART, 7) == 0) {
+                ESP_LOGI(TAG, "RESTART command detected");
+                handle_restart_command();
+                s_cmd_buffer.len = 0;
+                memset(s_cmd_buffer.buffer, 0, sizeof(s_cmd_buffer.buffer));
+                return;  /* 重启后不会执行到这里 */
+            }
+        }
+        
+        /* 检查 OPEN 命令 (4 字符) */
         if (s_cmd_buffer.len >= 4) {
             char *cmd_start = s_cmd_buffer.buffer + s_cmd_buffer.len - 4;
             if (strncmp(cmd_start, BT_CMD_OPEN_DOOR, 4) == 0) {
@@ -110,6 +125,23 @@ static void handle_open_command(void)
         ESP_LOGE(TAG, "Failed to send to PWM queue");
         bt_spp_send(BT_RSP_ERROR, strlen(BT_RSP_ERROR));
     }
+}
+
+/**
+ * @brief 处理RESTART重启指令
+ */
+static void handle_restart_command(void)
+{
+    ESP_LOGI(TAG, "RESTART command received, rebooting in 1 second...");
+    
+    /* 发送响应 */
+    bt_spp_send(BT_RSP_OK, strlen(BT_RSP_OK));
+    
+    /* 等待响应发送完成 */
+    vTaskDelay(pdMS_TO_TICKS(100));
+    
+    /* 重启设备 */
+    esp_restart();
 }
 
 /* GATT 服务定义 */

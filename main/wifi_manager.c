@@ -71,12 +71,13 @@ static void event_handler(void *arg, esp_event_base_t event_base,
             ESP_LOGI(TAG, "WiFi disconnected, retry %d/%d...", s_retry_count, MAX_RETRY_COUNT);
             esp_wifi_connect();
         } else if (s_has_saved_credentials && s_retry_count >= MAX_RETRY_COUNT) {
-            /* 重试次数用尽，启动 SmartConfig */
-            ESP_LOGW(TAG, "WiFi connection failed after %d retries, starting SmartConfig...", MAX_RETRY_COUNT);
-            s_has_saved_credentials = false;
-            if (s_smartconfig_task_handle == NULL) {
-                xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
-            }
+            /* 重试次数用尽，重启 */
+            ESP_LOGW(TAG, "WiFi connection failed after %d retries, restarting...", MAX_RETRY_COUNT);
+            // s_has_saved_credentials = false;
+            // if (s_smartconfig_task_handle == NULL) {
+            //     xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
+            // }
+            esp_restart();
         } else {
             /* SmartConfig 模式下断开，继续尝试连接 */
             ESP_LOGI(TAG, "WiFi disconnected, attempting to reconnect...");
@@ -121,6 +122,7 @@ static void led_status_task(void *parm)
     uint8_t led_state = LED_RED_OFF;
     
     ESP_LOGI(TAG, "LED status task started");
+
     
     while (1) {
         EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
@@ -138,7 +140,6 @@ static void led_status_task(void *parm)
         
         led_state = (led_state == LED_RED_OFF) ? LED_RED_ON : LED_RED_OFF;
         msg_send_to_led(LED_RED_GPIO, led_state);
-        
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     

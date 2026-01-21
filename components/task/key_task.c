@@ -38,7 +38,7 @@ static void key_task(void *pvParameters)
     TickType_t release_tick = 0;
     bool long_press_sent = false;
 
-    ESP_LOGI(TAG, "Key task started, scanning GPIO %d", gpio_num);
+    ESP_LOGI(TAG, "Key task started, scanning GPIO %d, callback=%p", gpio_num, callback);
 
     /* 按键扫描主循环 */
     while (1) {
@@ -122,10 +122,14 @@ static void key_task(void *pvParameters)
                 /* 检测到上升沿（第二次按下后释放），确认双击完成 */
                 if (current_key_level == 1 && last_key_level == 0) {
                     /* 双击事件通过回调通知 */
+                    ESP_LOGI(TAG, "Double click detected, callback=%p", callback);
                     if (callback) {
+                        ESP_LOGI(TAG, "Calling callback for double click");
                         callback(gpio_num, KEY_EVENT_DOUBLE_CLICK);
+                        ESP_LOGI(TAG, "Callback returned");
+                    } else {
+                        ESP_LOGW(TAG, "Callback is NULL!");
                     }
-                    ESP_LOGI(TAG, "Double click detected");
                     state = KEY_STATE_IDLE;
                 }
                 break;

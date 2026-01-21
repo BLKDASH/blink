@@ -13,7 +13,7 @@
 
 static const char *TAG = "servo_task";
 
-#define SERVO_TASK_STACK_SIZE 2048
+#define SERVO_TASK_STACK_SIZE 4096
 #define SERVO_TASK_PRIORITY   5
 
 /* 双击计数器配置 - 连续双击触发WiFi凭据清除 */
@@ -110,7 +110,9 @@ static void servo_task(void *pvParameters)
              SERVO_ANGLE_POS1, SERVO_ANGLE_POS2);
 
     while (1) {
+        ESP_LOGI(TAG, "Servo task waiting for message...");
         if (msg_queue_receive(pwm_queue, &msg, portMAX_DELAY)) {
+            ESP_LOGI(TAG, "Servo task received message type=%d", msg.type);
             if (msg.type == MSG_TYPE_KEY && msg.data.key.event == KEY_EVENT_DOUBLE_CLICK) {
                 /* 双击计数器 - 先处理计数 */
                 if (check_counter_timeout(&double_click_counter)) {

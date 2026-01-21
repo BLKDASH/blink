@@ -180,6 +180,12 @@ bool msg_send_mqtt_door_cmd(mqtt_cmd_t cmd)
         return false;
     }
 
+    // 检查队列状态
+    UBaseType_t queue_spaces = uxQueueSpacesAvailable(queue);
+    UBaseType_t queue_waiting = uxQueueMessagesWaiting(queue);
+    ESP_LOGI(TAG, "PWM queue status: %d/%d messages, %d spaces available", 
+             queue_waiting, queue_waiting + queue_spaces, queue_spaces);
+
     msg_t msg = {
         .type = MSG_TYPE_MQTT,
         .data.mqtt = {
@@ -187,10 +193,38 @@ bool msg_send_mqtt_door_cmd(mqtt_cmd_t cmd)
         }
     };
 
-    return msg_queue_send(queue, &msg, 100);
+    // 使用较短超时避免长时间阻塞
+    bool result = msg_queue_send(queue, &msg, 100);
+    if (!result) {
+        ESP_LOGE(TAG, "Failed to send MQTT door command, queue full!");
+    }
+    return result;
 }
 
 bool msg_type_is_valid(msg_type_t type)
 {
     return (type > MSG_TYPE_NONE && type < MSG_TYPE_MAX);
+}
+
+bool msg_queue_check_health(void)
+{
+    bool all_healthy = true;
+    
+    for (int i = 0; i < QUEUE_MAX; i++) {
+        if (s_queues[i] == NULL) {
+            ESP_LOGW(TAG, "Queue %d not initialized", i);
+            continue;
+        }
+        
+        UBaseType_t spaces = uxQueueSpacesAvailable(s_queues[i]);
+        UBaseType_t waiting = uxQueueMessagesWaiting(s_queues[i]);
+        
+        /* 如果队列完全满了（没有空闲空间） */
+        if (spaces == 0) {
+            ESP_LOGE(TAG, "Queue %d is FULL! (%d messages)", i, waiting);
+            all_healthy = false;
+        }
+    }
+    
+    return all_healthy;
 }

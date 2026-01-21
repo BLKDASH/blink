@@ -7,13 +7,16 @@
 #include "led_task.h"
 #include "key_task.h"
 #include "pwm_task.h"
+#include "queue_monitor_task.h"
+#include "watchdog_task.h"
+#include "system_monitor_task.h"
 #include "wifi_manager.h"
 #include "bt_spp.h"
 #include "ha_mqtt.h"
 
 static const char *TAG = "main";
 
-#define MSG_QUEUE_LEN 10
+#define MSG_QUEUE_LEN 20
 
 /**
  * @brief MQTT 门命令回调函数
@@ -22,10 +25,17 @@ static const char *TAG = "main";
  */
 static void mqtt_door_callback(bool is_on)
 {
+    bool success;
     if (is_on) {
-        msg_send_mqtt_door_cmd(MQTT_CMD_DOOR_ON);
+        success = msg_send_mqtt_door_cmd(MQTT_CMD_DOOR_ON);
+        if (!success) {
+            ESP_LOGE(TAG, "Failed to send MQTT door ON command, queue may be full");
+        }
     } else {
-        msg_send_mqtt_door_cmd(MQTT_CMD_DOOR_OFF);
+        success = msg_send_mqtt_door_cmd(MQTT_CMD_DOOR_OFF);
+        if (!success) {
+            ESP_LOGE(TAG, "Failed to send MQTT door OFF command, queue may be full");
+        }
     }
 }
 
@@ -66,9 +76,14 @@ static void key_event_handler(uint8_t gpio_num, key_event_t event)
             // 单击：执行开门操作
             msg_send_key_event(QUEUE_PWM, gpio_num, event);
             break;
-        case KEY_EVENT_LONG_PRESS:
-            // 长按：切换绿灯
+        case KEY_EVENT_DOUBLE_CLICK:
+            // 双击：切换绿灯
             msg_send_key_event(QUEUE_LED, gpio_num, event);
+            break;
+        case KEY_EVENT_LONG_PRESS:
+            // 长按：重新启动 SmartConfig
+            msg_send_to_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
+            ESP_LOGI(TAG, "Double click detected, restarting SmartConfig");
             break;
         default:
             break;
@@ -133,6 +148,24 @@ void app_main(void)
     };
     if (key_task_create(&key_cfg) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create key task");
+        return;
+    }
+    
+    // 创建队列监控任务
+    if (queue_monitor_task_create() != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create queue monitor task");
+        return;
+    }
+    
+    // 创建系统监控任务
+    if (system_monitor_task_create() != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create system monitor task");
+        return;
+    }
+    
+    // 创建看门狗任务（最后创建，确保系统基本功能正常）
+    if (watchdog_task_create() != pdPASS) {
+        ESP_LOGE(TAG, "Failed to create watchdog task");
         return;
     }
 

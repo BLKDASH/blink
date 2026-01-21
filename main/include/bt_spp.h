@@ -22,6 +22,7 @@ extern "C" {
 
 /* 指令定义 */
 #define BT_CMD_OPEN_DOOR "OPEN"
+#define BT_CMD_RESTART   "RESTART"
 #define BT_CMD_MAX_LEN   32
 
 /* 响应消息 */

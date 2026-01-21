@@ -119,6 +119,12 @@ bool msg_send_key_event(queue_id_t queue_id, uint8_t gpio_num, key_event_t event
 
 bool msg_type_is_valid(msg_type_t type);
 
+/**
+ * @brief 检查所有队列是否健康（未满）
+ * @return true 所有队列健康，false 有队列已满
+ */
+bool msg_queue_check_health(void);
+
 #ifdef __cplusplus
 }
 #endif
