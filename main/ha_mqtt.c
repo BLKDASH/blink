@@ -17,6 +17,7 @@
 #include "mqtt_client.h"
 
 #include "ha_mqtt.h"
+#include "bt_spp.h"
 
 static const char *TAG = "ha_mqtt";
 
@@ -175,6 +176,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
     switch ((esp_mqtt_event_id_t)event_id) {
         case MQTT_EVENT_CONNECTED:
             ESP_LOGI(TAG, "MQTT connected to broker");
+            bt_spp_log("[MQTT] Connected to broker");
             xEventGroupSetBits(s_mqtt_event_group, MQTT_CONNECTED_BIT);
             xEventGroupClearBits(s_mqtt_event_group, MQTT_DISCONNECTED_BIT);
             
@@ -196,6 +198,7 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
             
         case MQTT_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "MQTT disconnected from broker");
+            bt_spp_log("[MQTT] Disconnected from broker");
             xEventGroupClearBits(s_mqtt_event_group, MQTT_CONNECTED_BIT);
             xEventGroupSetBits(s_mqtt_event_group, MQTT_DISCONNECTED_BIT);
             break;
@@ -224,11 +227,13 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
                 /* 解析命令 */
                 if (event->data_len >= 2 && strncmp(event->data, "ON", 2) == 0) {
                     ESP_LOGI(TAG, "Received door ON command");
+                    bt_spp_log("[MQTT] Door ON command received");
                     if (s_door_callback != NULL) {
                         s_door_callback(true);
                     }
                 } else if (event->data_len >= 3 && strncmp(event->data, "OFF", 3) == 0) {
                     ESP_LOGI(TAG, "Received door OFF command");
+                    bt_spp_log("[MQTT] Door OFF command received");
                     if (s_door_callback != NULL) {
                         s_door_callback(false);
                     }

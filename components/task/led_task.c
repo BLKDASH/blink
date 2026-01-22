@@ -22,7 +22,7 @@ static void led_task(void *pvParameters)
     static uint8_t red_led_state = LED_RED_OFF;
     static uint8_t green_led_state = LED_GRE_ON;
 
-    ESP_LOGI(TAG, "LED task started");
+    ESP_LOGI(TAG, "LED task started, stack size: %d bytes", LED_TASK_STACK_SIZE * sizeof(StackType_t));
 
     while (1) {
         if (msg_queue_receive(queue, &msg, portMAX_DELAY)) {

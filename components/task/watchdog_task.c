@@ -11,7 +11,7 @@
 
 static const char *TAG = "watchdog";
 
-#define WATCHDOG_TASK_STACK_SIZE 2048
+#define WATCHDOG_TASK_STACK_SIZE 3072
 #define WATCHDOG_TASK_PRIORITY   1
 #define WATCHDOG_TIMEOUT_S       30      /* 看门狗超时时间：30秒 */
 #define WATCHDOG_FEED_INTERVAL_MS 10000  /* 喂狗间隔：10秒 */
@@ -23,7 +23,8 @@ static TaskHandle_t s_watchdog_task_handle = NULL;
  */
 static void watchdog_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "Watchdog task started, timeout: %d seconds", WATCHDOG_TIMEOUT_S);
+    ESP_LOGI(TAG, "Watchdog task started, timeout: %d seconds, stack size: %d bytes", 
+             WATCHDOG_TIMEOUT_S, WATCHDOG_TASK_STACK_SIZE * sizeof(StackType_t));
     
     /* 订阅当前任务到看门狗 */
     esp_err_t ret = esp_task_wdt_add(NULL);

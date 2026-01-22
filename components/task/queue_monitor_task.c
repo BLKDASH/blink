@@ -11,7 +11,7 @@
 
 static const char *TAG = "queue_monitor";
 
-#define QUEUE_MONITOR_TASK_STACK_SIZE 2048
+#define QUEUE_MONITOR_TASK_STACK_SIZE 3072
 #define QUEUE_MONITOR_TASK_PRIORITY   2
 #define QUEUE_CHECK_INTERVAL_MS       5000   /* 每5秒检查一次 */
 #define QUEUE_FULL_THRESHOLD_COUNT    3      /* 连续3次检测到队列满才重启 */
@@ -23,7 +23,8 @@ static void queue_monitor_task(void *pvParameters)
 {
     uint8_t full_count = 0;
     
-    ESP_LOGI(TAG, "Queue monitor task started, check interval: %d ms", QUEUE_CHECK_INTERVAL_MS);
+    ESP_LOGI(TAG, "Queue monitor task started, check interval: %d ms, stack size: %d bytes", 
+             QUEUE_CHECK_INTERVAL_MS, QUEUE_MONITOR_TASK_STACK_SIZE * sizeof(StackType_t));
     
     /* 启动后延迟一段时间再开始检查，让系统稳定运行 */
     vTaskDelay(pdMS_TO_TICKS(10000));

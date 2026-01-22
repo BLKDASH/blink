@@ -46,7 +46,7 @@ static void mqtt_door_callback(bool is_on)
  */
 static void mqtt_start_task(void *pvParameters)
 {
-    ESP_LOGI(TAG, "MQTT start task waiting for WiFi connection...");
+    ESP_LOGI(TAG, "MQTT start task waiting for WiFi connection (stack: 3072 bytes)...");
     
     /* 等待 WiFi 连接 */
     while (!wifi_manager_is_connected()) {
@@ -83,7 +83,7 @@ static void key_event_handler(uint8_t gpio_num, key_event_t event)
         case KEY_EVENT_LONG_PRESS:
             // 长按：重新启动 SmartConfig
             msg_send_to_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
-            ESP_LOGI(TAG, "Double click detected, restarting SmartConfig");
+            ESP_LOGI(TAG, "long press detected, restarting SmartConfig");
             break;
         default:
             break;
@@ -125,7 +125,7 @@ void app_main(void)
         // 注册门命令回调
         ha_mqtt_register_door_callback(mqtt_door_callback);
         // 创建 MQTT 启动任务（等待 WiFi 连接后启动）
-        xTaskCreate(mqtt_start_task, "mqtt_start", 2048, NULL, 3, NULL);
+        xTaskCreate(mqtt_start_task, "mqtt_start", 3072, NULL, 3, NULL);
         ESP_LOGI(TAG, "MQTT client initialized, waiting for WiFi to start");
     } else {
         ESP_LOGW(TAG, "MQTT client init failed, continuing without MQTT");

@@ -17,6 +17,7 @@
 #include "wifi_manager.h"
 #include "board.h"
 #include "msg_queue.h"
+#include "bt_spp.h"
 
 static const char *TAG = "wifi_manager";
 
@@ -69,10 +70,12 @@ static void event_handler(void *arg, esp_event_base_t event_base,
         if (s_has_saved_credentials && s_retry_count < MAX_RETRY_COUNT) {
             s_retry_count++;
             ESP_LOGI(TAG, "WiFi disconnected, retry %d/%d...", s_retry_count, MAX_RETRY_COUNT);
+            bt_spp_log("[WiFi] Disconnected, retry %d/%d", s_retry_count, MAX_RETRY_COUNT);
             esp_wifi_connect();
         } else if (s_has_saved_credentials && s_retry_count >= MAX_RETRY_COUNT) {
             /* 重试次数用尽，重启 */
             ESP_LOGW(TAG, "WiFi connection failed after %d retries, restarting...", MAX_RETRY_COUNT);
+            bt_spp_log("[WiFi] Connection failed, restarting...");
             // s_has_saved_credentials = false;
             // if (s_smartconfig_task_handle == NULL) {
             //     xTaskCreate(smartconfig_task, "smartconfig_task", 4096, NULL, 3, &s_smartconfig_task_handle);
@@ -86,6 +89,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
         ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
         ESP_LOGI(TAG, "WiFi connected, IP: " IPSTR, IP2STR(&event->ip_info.ip));
+        bt_spp_log("[WiFi] Connected, IP: " IPSTR, IP2STR(&event->ip_info.ip));
         xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
         s_retry_count = 0;  /* 连接成功，重置重试计数 */
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_SCAN_DONE) {
@@ -94,6 +98,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "SmartConfig found channel");
     } else if (event_base == SC_EVENT && event_id == SC_EVENT_GOT_SSID_PSWD) {
         ESP_LOGI(TAG, "SmartConfig got SSID and password");
+        bt_spp_log("[WiFi] SmartConfig got credentials");
 
         smartconfig_event_got_ssid_pswd_t *evt = (smartconfig_event_got_ssid_pswd_t *)event_data;
         wifi_config_t wifi_config;
@@ -107,6 +112,7 @@ static void event_handler(void *arg, esp_event_base_t event_base,
         }
 
         ESP_LOGI(TAG, "SSID: %s", wifi_config.sta.ssid);
+        bt_spp_log("[WiFi] Connecting to: %s", wifi_config.sta.ssid);
 
         ESP_ERROR_CHECK(esp_wifi_disconnect());
         ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
@@ -191,7 +197,7 @@ static void wifi_msg_task(void *parm)
     QueueHandle_t wifi_queue = msg_queue_get(QUEUE_WIFI);
     msg_t msg;
     
-    ESP_LOGI(TAG, "WiFi message task started");
+    ESP_LOGI(TAG, "WiFi message task started (stack: %d bytes)", uxTaskGetStackHighWaterMark(NULL));
     
     while (1) {
         if (msg_queue_receive(wifi_queue, &msg, portMAX_DELAY)) {
@@ -287,6 +293,7 @@ esp_err_t wifi_manager_clear_credentials(void)
     esp_err_t ret;
     
     ESP_LOGI(TAG, "Clearing WiFi credentials...");
+    bt_spp_log("[WiFi] Clearing credentials...");
     
     if (s_smartconfig_task_handle != NULL) {
         esp_smartconfig_stop();
@@ -310,9 +317,11 @@ esp_err_t wifi_manager_clear_credentials(void)
     ret = esp_wifi_restore();
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "WiFi restore failed: %s", esp_err_to_name(ret));
+        bt_spp_log("[WiFi] ERROR: Clear failed");
         return ret;
     }
     ESP_LOGI(TAG, "WiFi credentials cleared from NVS");
+    bt_spp_log("[WiFi] Credentials cleared, restarting SmartConfig");
     
     // esp_wifi_restore() 会重置模式，需要重新设置为 STA
     ret = esp_wifi_set_mode(WIFI_MODE_STA);
@@ -335,7 +344,7 @@ esp_err_t wifi_manager_clear_credentials(void)
 void wifi_manager_start_msg_task(void)
 {
     if (s_wifi_msg_task_handle == NULL) {
-        xTaskCreate(wifi_msg_task, "wifi_msg_task", 2048, NULL, 4, &s_wifi_msg_task_handle);
+        xTaskCreate(wifi_msg_task, "wifi_msg_task", 4096, NULL, 4, &s_wifi_msg_task_handle);
         ESP_LOGI(TAG, "WiFi message task created");
     }
 }

@@ -50,6 +50,14 @@ bool bt_spp_is_connected(void);
  */
 esp_err_t bt_spp_send(const char *data, size_t len);
 
+/**
+ * @brief 通过蓝牙发送调试日志（带换行）
+ * @param format 格式化字符串
+ * @param ... 可变参数
+ * @return ESP_OK成功, 其他失败
+ */
+esp_err_t bt_spp_log(const char *format, ...) __attribute__((format(printf, 1, 2)));
+
 #ifdef __cplusplus
 }
 #endif

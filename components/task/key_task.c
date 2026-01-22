@@ -8,10 +8,11 @@
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
+#include "bt_spp.h"
 
 static const char *TAG = "key_task";
 
-#define KEY_TASK_STACK_SIZE      2048
+#define KEY_TASK_STACK_SIZE      3072
 #define KEY_TASK_PRIORITY        4
 #define KEY_SCAN_INTERVAL_MS     10
 
@@ -38,7 +39,8 @@ static void key_task(void *pvParameters)
     TickType_t release_tick = 0;
     bool long_press_sent = false;
 
-    ESP_LOGI(TAG, "Key task started, scanning GPIO %d, callback=%p", gpio_num, callback);
+    ESP_LOGI(TAG, "Key task started, scanning GPIO %d, stack size: %d bytes", 
+             gpio_num, KEY_TASK_STACK_SIZE * sizeof(StackType_t));
 
     /* 按键扫描主循环 */
     while (1) {
@@ -76,6 +78,8 @@ static void key_task(void *pvParameters)
                     TickType_t press_duration = current_tick - press_start_tick;
                     if (press_duration >= pdMS_TO_TICKS(LONG_PRESS_TIME_MS) && !long_press_sent) {
                         /* 超时则触发长按事件 */
+                        ESP_LOGI(TAG, "Long press detected");
+                        bt_spp_log("[KEY] Long press");
                         if (callback) {
                             callback(gpio_num, KEY_EVENT_LONG_PRESS);
                         }
@@ -123,6 +127,7 @@ static void key_task(void *pvParameters)
                 if (current_key_level == 1 && last_key_level == 0) {
                     /* 双击事件通过回调通知 */
                     ESP_LOGI(TAG, "Double click detected, callback=%p", callback);
+                    bt_spp_log("[KEY] Double click");
                     if (callback) {
                         ESP_LOGI(TAG, "Calling callback for double click");
                         callback(gpio_num, KEY_EVENT_DOUBLE_CLICK);

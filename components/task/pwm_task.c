@@ -106,8 +106,8 @@ static void servo_task(void *pvParameters)
     s_close_door_timer = xTimerCreate("close_door", pdMS_TO_TICKS(OPEN_TIME), 
                                        pdFALSE, NULL, close_door_timer_callback);
 
-    ESP_LOGI(TAG, "Servo task started (Pos1: %d°, Pos2: %d°)", 
-             SERVO_ANGLE_POS1, SERVO_ANGLE_POS2);
+    ESP_LOGI(TAG, "Servo task started (Pos1: %d°, Pos2: %d°), stack size: %d bytes", 
+             SERVO_ANGLE_POS1, SERVO_ANGLE_POS2, SERVO_TASK_STACK_SIZE * sizeof(StackType_t));
 
     while (1) {
         ESP_LOGI(TAG, "Servo task waiting for message...");
