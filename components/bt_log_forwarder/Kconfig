@@ -1,0 +1,39 @@
+menu "Bluetooth Log Forwarder Configuration"
+
+    config BT_LOG_FORWARDER_ENABLE
+        bool "Enable Bluetooth Log Forwarder"
+        default y
+        help
+            Enable forwarding of ESP-IDF logs via Bluetooth SPP.
+            When enabled, all log messages will be sent to connected
+            Bluetooth clients in addition to console output.
+
+    config BT_LOG_FORWARDER_BUFFER_SIZE
+        int "Log Buffer Size"
+        default 256
+        range 128 1024
+        depends on BT_LOG_FORWARDER_ENABLE
+        help
+            Maximum size of a single log message in bytes.
+            Messages longer than this will be truncated.
+
+    config BT_LOG_FORWARDER_TIMEOUT_MS
+        int "Mutex Timeout (ms)"
+        default 10
+        range 1 100
+        depends on BT_LOG_FORWARDER_ENABLE
+        help
+            Timeout for acquiring the mutex lock in milliseconds.
+            If the lock cannot be acquired within this time,
+            the log will be skipped to avoid blocking.
+
+    config BT_LOG_FORWARDER_MAX_RETRIES
+        int "Maximum Send Retries"
+        default 3
+        range 0 10
+        depends on BT_LOG_FORWARDER_ENABLE
+        help
+            Maximum number of retries when Bluetooth send fails.
+            Set to 0 to disable retries.
+
+endmenu

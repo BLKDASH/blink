@@ -13,7 +13,7 @@
 
 static const char *TAG = "led_task";
 
-#define LED_TASK_STACK_SIZE 2048
+#define LED_TASK_STACK_SIZE 3072  // 增加到3KB，为日志转发预留空间
 #define LED_TASK_PRIORITY   5
 
 /* 全局LED状态变量 */

@@ -10,6 +10,7 @@
 #include "wifi_manager.h"
 #include "bt_spp.h"
 #include "ha_mqtt.h"
+#include "bt_log_forwarder.h"
 
 static const char *TAG = "main";
 
@@ -92,6 +93,13 @@ void app_main(void)
     // 蓝牙SPP服务初始化
     if (bt_spp_init() != ESP_OK) {
         ESP_LOGW(TAG, "Bluetooth SPP init failed, continuing without BT");
+    } else {
+        // 蓝牙初始化成功后，初始化日志转发器
+        if (bt_log_forwarder_init() != ESP_OK) {
+            ESP_LOGW(TAG, "Bluetooth log forwarder init failed, continuing without log forwarding");
+        } else {
+            ESP_LOGI(TAG, "Bluetooth log forwarder initialized successfully");
+        }
     }
 
     // MQTT 客户端初始化
