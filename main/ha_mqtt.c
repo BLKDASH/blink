@@ -18,6 +18,7 @@
 
 #include "ha_mqtt.h"
 #include "bt_spp.h"
+#include "board.h"
 
 static const char *TAG = "ha_mqtt";
 
@@ -33,7 +34,6 @@ static const char *TAG = "ha_mqtt";
 /* 静态变量 */
 static esp_mqtt_client_handle_t s_mqtt_client = NULL;
 static EventGroupHandle_t s_mqtt_event_group = NULL;
-static ha_mqtt_door_callback_t s_door_callback = NULL;
 static char s_device_id[DEVICE_ID_SIZE] = {0};
 static bool s_initialized = false;
 
@@ -228,15 +228,27 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
                 if (event->data_len >= 2 && strncmp(event->data, "ON", 2) == 0) {
                     ESP_LOGI(TAG, "Received door ON command");
                     bt_spp_log("[MQTT] Door ON command received");
-                    if (s_door_callback != NULL) {
-                        s_door_callback(true);
+                    
+                    /* 发布开门状态 */
+                    ha_mqtt_publish_door_state(true);
+                    
+                    /* 直接调用开门函数（阻塞） */
+                    esp_err_t ret = door_open();
+                    if (ret != ESP_OK) {
+                        ESP_LOGE(TAG, "Failed to open door: %s", esp_err_to_name(ret));
+                        bt_spp_log("[MQTT] Failed to open door");
+                    } else {
+                        ESP_LOGI(TAG, "Door operation completed");
+                        bt_spp_log("[MQTT] Door operation completed");
                     }
+                    
+                    /* 开门完成后发布关门状态 */
+                    ha_mqtt_publish_door_state(false);
+                    
                 } else if (event->data_len >= 3 && strncmp(event->data, "OFF", 3) == 0) {
-                    ESP_LOGI(TAG, "Received door OFF command");
-                    bt_spp_log("[MQTT] Door OFF command received");
-                    if (s_door_callback != NULL) {
-                        s_door_callback(false);
-                    }
+                    ESP_LOGI(TAG, "Received door OFF command (ignored - door auto-closes)");
+                    bt_spp_log("[MQTT] Door OFF command received (ignored)");
+                    /* OFF 命令忽略，因为开门会自动关门 */
                 } else {
                     ESP_LOGW(TAG, "Unknown command: %.*s", event->data_len, event->data);
                 }
@@ -416,12 +428,6 @@ esp_err_t ha_mqtt_publish_door_state(bool is_on)
     
     ESP_LOGI(TAG, "Published door state: %s, msg_id=%d", state, msg_id);
     return ESP_OK;
-}
-
-void ha_mqtt_register_door_callback(ha_mqtt_door_callback_t callback)
-{
-    s_door_callback = callback;
-    ESP_LOGI(TAG, "Door callback %s", callback ? "registered" : "unregistered");
 }
 
 const char* ha_mqtt_get_device_id(void)

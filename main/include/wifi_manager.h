@@ -38,13 +38,6 @@ bool wifi_manager_is_connected(void);
  */
 esp_err_t wifi_manager_clear_credentials(void);
 
-/**
- * @brief 启动WiFi消息处理任务
- * 
- * 创建任务监听WiFi消息队列，处理WiFi控制命令
- */
-void wifi_manager_start_msg_task(void);
-
 #ifdef __cplusplus
 }
 #endif

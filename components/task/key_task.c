@@ -4,7 +4,6 @@
  */
 
 #include "key_task.h"
-#include "msg_queue.h"
 #include "esp_log.h"
 #include "freertos/task.h"
 #include "driver/gpio.h"
@@ -23,6 +22,10 @@ static const char *TAG = "key_task";
 
 /* 静态配置存储 */
 static key_task_config_t s_config;
+
+/* 静态任务资源 */
+static StackType_t key_task_stack[KEY_TASK_STACK_SIZE];
+static StaticTask_t key_task_buffer;
 
 /**
  * @brief Key task function with gesture detection
@@ -160,20 +163,21 @@ BaseType_t key_task_create(const key_task_config_t *config)
 
     s_config = *config;
 
-    BaseType_t result = xTaskCreate(
+    TaskHandle_t task_handle = xTaskCreateStatic(
         key_task,
         "key_task",
         KEY_TASK_STACK_SIZE,
         NULL,
         KEY_TASK_PRIORITY,
-        NULL
+        key_task_stack,
+        &key_task_buffer
     );
 
-    if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create key task");
+    if (task_handle == NULL) {
+        ESP_LOGE(TAG, "Failed to create key task (static)");
+        return pdFAIL;
     } else {
-        ESP_LOGI(TAG, "Key task created for GPIO %d", config->gpio_num);
+        ESP_LOGI(TAG, "Key task created for GPIO %d (static allocation)", config->gpio_num);
+        return pdPASS;
     }
-
-    return result;
 }

@@ -18,6 +18,10 @@ static const char *TAG = "watchdog";
 
 static TaskHandle_t s_watchdog_task_handle = NULL;
 
+/* 静态任务资源 */
+static StackType_t watchdog_task_stack[WATCHDOG_TASK_STACK_SIZE];
+static StaticTask_t watchdog_task_buffer;
+
 /**
  * @brief 看门狗任务
  */
@@ -53,21 +57,22 @@ BaseType_t watchdog_task_create(void)
     /* 任务看门狗已经由系统初始化，直接创建任务订阅即可 */
     ESP_LOGI(TAG, "Task watchdog already initialized by system");
     
-    /* 创建看门狗任务 */
-    BaseType_t result = xTaskCreate(
+    /* 创建看门狗任务（静态分配） */
+    s_watchdog_task_handle = xTaskCreateStatic(
         watchdog_task,
         "watchdog",
         WATCHDOG_TASK_STACK_SIZE,
         NULL,
         WATCHDOG_TASK_PRIORITY,
-        &s_watchdog_task_handle
+        watchdog_task_stack,
+        &watchdog_task_buffer
     );
 
-    if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create watchdog task");
+    if (s_watchdog_task_handle == NULL) {
+        ESP_LOGE(TAG, "Failed to create watchdog task (static)");
+        return pdFAIL;
     } else {
-        ESP_LOGI(TAG, "Watchdog task created successfully");
+        ESP_LOGI(TAG, "Watchdog task created successfully (static allocation)");
+        return pdPASS;
     }
-
-    return result;
 }

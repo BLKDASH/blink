@@ -2,6 +2,7 @@
 #define __BOARD_H__
 
 #include "esp_err.h"
+#include <stdbool.h>
 
 // LED GPIO定义
 #define LED_RED_GPIO 11 // 低电平亮
@@ -23,7 +24,7 @@
 
 // MG995舵机角度配置 - 双击切换的两个固定角度
 #define SERVO_ANGLE_POS1    135       // 位置1: 135度
-#define SERVO_ANGLE_POS2    80      // 位置2: 45度
+#define SERVO_ANGLE_POS2    80      // 位置2: 80度
 
 #define OPEN_TIME 2000 //开门持续时间:2s
 
@@ -47,6 +48,46 @@ esp_err_t configure_servo(void);
  * @return ESP_OK成功, 其他失败
  */
 esp_err_t servo_set_angle(uint8_t angle);
+
+/**
+ * @brief 初始化门控制器
+ * 
+ * 初始化舵机和互斥锁
+ * 
+ * @return ESP_OK 成功，其他失败
+ */
+esp_err_t door_controller_init(void);
+
+/**
+ * @brief 执行开门操作（阻塞）
+ * 
+ * 执行完整的开门周期：
+ * 1. 设置舵机到开门角度
+ * 2. 阻塞等待配置的开门时间
+ * 3. 设置舵机到关门角度
+ * 
+ * 此函数是线程安全的，使用互斥锁保护。
+ * 如果另一个任务正在执行开门，此函数会等待。
+ * 
+ * @return ESP_OK 成功，其他失败
+ */
+esp_err_t door_open(void);
+
+/**
+ * @brief 执行关门操作
+ * 
+ * 立即设置舵机到关门角度
+ * 
+ * @return ESP_OK 成功，其他失败
+ */
+esp_err_t door_close(void);
+
+/**
+ * @brief 获取当前门状态
+ * 
+ * @return true 门开启，false 门关闭
+ */
+bool door_is_open(void);
 
 
 #endif

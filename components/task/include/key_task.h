@@ -8,11 +8,29 @@
 
 #include <stdint.h>
 #include "freertos/FreeRTOS.h"
-#include "msg_queue.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief 按键事件类型
+ */
+typedef enum {
+    KEY_EVENT_SINGLE_CLICK,  /**< 单击事件 */
+    KEY_EVENT_DOUBLE_CLICK,  /**< 双击事件 */
+    KEY_EVENT_LONG_PRESS     /**< 长按事件 */
+} key_event_t;
+
+/**
+ * @brief 按键状态机状态
+ */
+typedef enum {
+    KEY_STATE_IDLE,           /**< 空闲状态 */
+    KEY_STATE_PRESSED,        /**< 按下状态 */
+    KEY_STATE_WAIT_SECOND,    /**< 等待第二次按下（判断双击） */
+    KEY_STATE_DOUBLE_PRESSED  /**< 双击第二次按下 */
+} key_state_t;
 
 /**
  * @brief 按键事件回调函数类型

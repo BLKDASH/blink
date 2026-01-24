@@ -16,8 +16,9 @@
 
 #include "wifi_manager.h"
 #include "board.h"
-#include "msg_queue.h"
 #include "bt_spp.h"
+#include "driver/gpio.h"
+#include "led_task.h"
 
 static const char *TAG = "wifi_manager";
 
@@ -30,12 +31,10 @@ static const int SMARTCONFIG_RUNNING_BIT = BIT2;
 static EventGroupHandle_t s_wifi_event_group = NULL;
 static TaskHandle_t s_smartconfig_task_handle = NULL;
 static TaskHandle_t s_led_blink_task_handle = NULL;
-static TaskHandle_t s_wifi_msg_task_handle = NULL;
 
 /* 前向声明 */
 static void smartconfig_task(void *parm);
 static void led_status_task(void *parm);
-static void wifi_msg_task(void *parm);
 static void event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data);
 
@@ -125,27 +124,24 @@ static void event_handler(void *arg, esp_event_base_t event_base,
 
 static void led_status_task(void *parm)
 {
-    uint8_t led_state = LED_RED_OFF;
-    
     ESP_LOGI(TAG, "LED status task started");
-
     
     while (1) {
         EventBits_t bits = xEventGroupGetBits(s_wifi_event_group);
         
         if (bits & CONNECTED_BIT) {
-            msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
+            led_set_red(LED_RED_OFF);
             ESP_LOGI(TAG, "WiFi connected, red LED off");
             break;
         }
         
         if (!(bits & SMARTCONFIG_RUNNING_BIT)) {
-            msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
+            led_set_red(LED_RED_OFF);
             break;
         }
         
-        led_state = (led_state == LED_RED_OFF) ? LED_RED_ON : LED_RED_OFF;
-        msg_send_to_led(LED_RED_GPIO, led_state);
+        // 闪烁红色LED表示SmartConfig运行中
+        led_toggle_red();
         vTaskDelay(pdMS_TO_TICKS(200));
     }
     
@@ -180,7 +176,7 @@ static void smartconfig_task(void *parm)
                 vTaskDelete(s_led_blink_task_handle);
                 s_led_blink_task_handle = NULL;
             }
-            msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
+            led_set_red(LED_RED_OFF);
             
             s_smartconfig_task_handle = NULL;
             vTaskDelete(NULL);
@@ -188,32 +184,6 @@ static void smartconfig_task(void *parm)
         
         if (uxBits & CONNECTED_BIT) {
             ESP_LOGI(TAG, "WiFi connected to AP");
-        }
-    }
-}
-
-static void wifi_msg_task(void *parm)
-{
-    QueueHandle_t wifi_queue = msg_queue_get(QUEUE_WIFI);
-    msg_t msg;
-    
-    ESP_LOGI(TAG, "WiFi message task started (stack: %d bytes)", uxTaskGetStackHighWaterMark(NULL));
-    
-    while (1) {
-        if (msg_queue_receive(wifi_queue, &msg, portMAX_DELAY)) {
-            if (msg.type == MSG_TYPE_WIFI) {
-                switch (msg.data.wifi.cmd) {
-                    case WIFI_CMD_CLEAR_CREDENTIALS:
-                        ESP_LOGI(TAG, "Received clear credentials command");
-                        wifi_manager_clear_credentials();
-                        break;
-                    default:
-                        ESP_LOGW(TAG, "Unknown WiFi command: %d", msg.data.wifi.cmd);
-                        break;
-                }
-            } else {
-                ESP_LOGW(TAG, "Received non-WiFi message type: %d", msg.type);
-            }
         }
     }
 }
@@ -306,7 +276,7 @@ esp_err_t wifi_manager_clear_credentials(void)
         vTaskDelete(s_led_blink_task_handle);
         s_led_blink_task_handle = NULL;
     }
-    msg_send_to_led(LED_RED_GPIO, LED_RED_OFF);
+    led_set_red(LED_RED_OFF);
     
     ret = esp_wifi_disconnect();
     if (ret != ESP_OK) {
@@ -339,12 +309,4 @@ esp_err_t wifi_manager_clear_credentials(void)
     ESP_LOGI(TAG, "WiFi restarted, SmartConfig will start automatically");
     
     return ESP_OK;
-}
-
-void wifi_manager_start_msg_task(void)
-{
-    if (s_wifi_msg_task_handle == NULL) {
-        xTaskCreate(wifi_msg_task, "wifi_msg_task", 4096, NULL, 4, &s_wifi_msg_task_handle);
-        ESP_LOGI(TAG, "WiFi message task created");
-    }
 }

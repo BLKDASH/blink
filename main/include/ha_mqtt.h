@@ -17,15 +17,6 @@ extern "C" {
 #endif
 
 /**
- * @brief 门状态变化回调函数类型
- * 
- * 当收到 MQTT 开关命令时调用此回调
- * 
- * @param is_on true 为开门，false 为关门
- */
-typedef void (*ha_mqtt_door_callback_t)(bool is_on);
-
-/**
  * @brief 初始化 MQTT 客户端
  * 
  * 配置 MQTT 连接参数，注册事件处理器。
@@ -68,15 +59,6 @@ bool ha_mqtt_is_connected(void);
  * @return ESP_OK 成功，其他失败
  */
 esp_err_t ha_mqtt_publish_door_state(bool is_on);
-
-/**
- * @brief 注册门状态变化回调
- * 
- * 当收到 MQTT 开关命令时调用此回调
- * 
- * @param callback 回调函数，传 NULL 取消注册
- */
-void ha_mqtt_register_door_callback(ha_mqtt_door_callback_t callback);
 
 /**
  * @brief 获取设备 ID

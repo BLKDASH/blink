@@ -9,7 +9,6 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "freertos/timers.h"
 
 #include "esp_log.h"
 #include "esp_system.h"
@@ -56,14 +55,9 @@ static bt_ble_state_t s_ble_state = {0};
 static bt_cmd_buffer_t s_cmd_buffer = {0};
 static uint8_t own_addr_type;
 
-/* 自动关门定时器 */
-static TimerHandle_t s_bt_close_door_timer = NULL;
-static bool s_bt_door_open = false;
-
 /* 前向声明 */
 static void handle_open_command(void);
 static void handle_restart_command(void);
-static void bt_close_door_timer_callback(TimerHandle_t xTimer);
 static int gatt_svr_chr_access(uint16_t conn_handle, uint16_t attr_handle,
                                 struct ble_gatt_access_ctxt *ctxt, void *arg);
 static void ble_advertise(void);
@@ -116,53 +110,31 @@ static void parse_command(const uint8_t *data, uint16_t len)
 }
 
 /**
- * @brief 自动关门定时器回调
- */
-static void bt_close_door_timer_callback(TimerHandle_t xTimer)
-{
-    if (s_bt_door_open) {
-        servo_set_angle(SERVO_ANGLE_POS1);
-        s_bt_door_open = false;
-        ESP_LOGI(TAG, "BT auto close door: Servo set to %d degrees", SERVO_ANGLE_POS1);
-        bt_spp_log("[BT] Auto close door");
-        
-        /* 发布门状态到 MQTT */
-        ha_mqtt_publish_door_state(false);
-    }
-}
-
-/**
- * @brief 处理OPEN开门指令 - 直接控制舵机，不使用队列
+ * @brief 处理OPEN开门指令 - 直接调用 door_open()
  */
 static void handle_open_command(void)
 {
-    ESP_LOGI(TAG, "BT OPEN command: directly opening door");
+    ESP_LOGI(TAG, "BT OPEN command: opening door");
     bt_spp_log("[BT] Opening door...");
     
-    /* 直接控制舵机开门 */
-    esp_err_t ret = servo_set_angle(SERVO_ANGLE_POS2);
+    /* 发布开门状态到 MQTT */
+    ha_mqtt_publish_door_state(true);
+    
+    /* 直接调用 door_open() 函数（阻塞式） */
+    esp_err_t ret = door_open();
     
     if (ret == ESP_OK) {
-        s_bt_door_open = true;
-        ESP_LOGI(TAG, "BT open door: Servo set to %d degrees", SERVO_ANGLE_POS2);
-        bt_spp_log("[BT] Door opened (angle: %d)", SERVO_ANGLE_POS2);
-        
-        /* 发布门状态到 MQTT */
-        ha_mqtt_publish_door_state(true);
-        
-        /* 重置并启动关门定时器 */
-        if (s_bt_close_door_timer != NULL) {
-            xTimerStop(s_bt_close_door_timer, 0);
-            xTimerChangePeriod(s_bt_close_door_timer, pdMS_TO_TICKS(OPEN_TIME), 0);
-            xTimerStart(s_bt_close_door_timer, 0);
-        }
-        
+        ESP_LOGI(TAG, "BT: Door operation completed");
+        bt_spp_log("[BT] Door operation completed");
         bt_spp_send(BT_RSP_OK, strlen(BT_RSP_OK));
     } else {
-        ESP_LOGE(TAG, "Failed to set servo angle: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to open door: %s", esp_err_to_name(ret));
         bt_spp_log("[BT] ERROR: Failed to open door");
         bt_spp_send(BT_RSP_ERROR, strlen(BT_RSP_ERROR));
     }
+    
+    /* 发布关门状态到 MQTT */
+    ha_mqtt_publish_door_state(false);
 }
 
 /**
@@ -430,14 +402,6 @@ esp_err_t bt_spp_init(void)
 
     /* 启动NimBLE Host任务 */
     nimble_port_freertos_init(ble_host_task);
-
-    /* 创建自动关门定时器 */
-    s_bt_close_door_timer = xTimerCreate("bt_close_door", pdMS_TO_TICKS(OPEN_TIME), 
-                                          pdFALSE, NULL, bt_close_door_timer_callback);
-    if (s_bt_close_door_timer == NULL) {
-        ESP_LOGE(TAG, "Failed to create BT close door timer");
-        return ESP_FAIL;
-    }
 
     ESP_LOGI(TAG, "BLE initialized, device: %s", BT_DEVICE_NAME);
     return ESP_OK;

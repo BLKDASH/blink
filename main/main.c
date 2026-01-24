@@ -3,11 +3,8 @@
 #include "freertos/task.h"
 #include "esp_log.h"
 #include "board.h"
-#include "msg_queue.h"
 #include "led_task.h"
 #include "key_task.h"
-#include "pwm_task.h"
-#include "queue_monitor_task.h"
 #include "watchdog_task.h"
 #include "system_monitor_task.h"
 #include "wifi_manager.h"
@@ -15,29 +12,6 @@
 #include "ha_mqtt.h"
 
 static const char *TAG = "main";
-
-#define MSG_QUEUE_LEN 20
-
-/**
- * @brief MQTT 门命令回调函数
- * 
- * 当收到 MQTT 开关命令时，发送消息到 PWM 队列
- */
-static void mqtt_door_callback(bool is_on)
-{
-    bool success;
-    if (is_on) {
-        success = msg_send_mqtt_door_cmd(MQTT_CMD_DOOR_ON);
-        if (!success) {
-            ESP_LOGE(TAG, "Failed to send MQTT door ON command, queue may be full");
-        }
-    } else {
-        success = msg_send_mqtt_door_cmd(MQTT_CMD_DOOR_OFF);
-        if (!success) {
-            ESP_LOGE(TAG, "Failed to send MQTT door OFF command, queue may be full");
-        }
-    }
-}
 
 /**
  * @brief MQTT 启动任务
@@ -74,16 +48,18 @@ static void key_event_handler(uint8_t gpio_num, key_event_t event)
     switch (event) {
         case KEY_EVENT_SINGLE_CLICK:
             // 单击：执行开门操作
-            msg_send_key_event(QUEUE_PWM, gpio_num, event);
+            ESP_LOGI(TAG, "Single click detected, opening door");
+            door_open();
             break;
         case KEY_EVENT_DOUBLE_CLICK:
-            // 双击：切换绿灯
-            msg_send_key_event(QUEUE_LED, gpio_num, event);
+            // 双击：切换绿色LED状态
+            ESP_LOGI(TAG, "Double click detected, toggling green LED");
+            led_toggle_green();
             break;
         case KEY_EVENT_LONG_PRESS:
-            // 长按：重新启动 SmartConfig
-            msg_send_to_wifi(WIFI_CMD_CLEAR_CREDENTIALS);
-            ESP_LOGI(TAG, "long press detected, restarting SmartConfig");
+            // 长按：清除 WiFi 凭据并重新启动 SmartConfig
+            ESP_LOGI(TAG, "Long press detected, clearing WiFi credentials");
+            wifi_manager_clear_credentials();
             break;
         default:
             break;
@@ -102,9 +78,9 @@ void app_main(void)
         ESP_LOGE(TAG, "Failed to configure servo");
     }
     
-    // 消息队列初始化
-    if (msg_queue_init_all(MSG_QUEUE_LEN) != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to initialize message queues");
+    // 门控制器初始化
+    if (door_controller_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to initialize door controller");
         return;
     }
     
@@ -112,8 +88,6 @@ void app_main(void)
     if (wifi_manager_init() != ESP_OK) {
         ESP_LOGE(TAG, "Failed to initialize WiFi manager");
     }
-    // wifi消息处理
-    wifi_manager_start_msg_task();
 
     // 蓝牙SPP服务初始化
     if (bt_spp_init() != ESP_OK) {
@@ -122,8 +96,6 @@ void app_main(void)
 
     // MQTT 客户端初始化
     if (ha_mqtt_init() == ESP_OK) {
-        // 注册门命令回调
-        ha_mqtt_register_door_callback(mqtt_door_callback);
         // 创建 MQTT 启动任务（等待 WiFi 连接后启动）
         xTaskCreate(mqtt_start_task, "mqtt_start", 3072, NULL, 3, NULL);
         ESP_LOGI(TAG, "MQTT client initialized, waiting for WiFi to start");
@@ -137,23 +109,12 @@ void app_main(void)
         return;
     }
     
-    if (pwm_task_create() != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create pwm task");
-        return;
-    }
-    
     key_task_config_t key_cfg = {
         .gpio_num = KEY_GPIO,
         .callback = key_event_handler
     };
     if (key_task_create(&key_cfg) != pdPASS) {
         ESP_LOGE(TAG, "Failed to create key task");
-        return;
-    }
-    
-    // 创建队列监控任务
-    if (queue_monitor_task_create() != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create queue monitor task");
         return;
     }
     

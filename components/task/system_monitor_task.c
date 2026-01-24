@@ -31,6 +31,10 @@ static const char *s_monitored_tasks[] = {
 };
 static const size_t s_monitored_tasks_count = sizeof(s_monitored_tasks) / sizeof(s_monitored_tasks[0]);
 
+/* 静态任务资源 */
+static StackType_t system_monitor_task_stack[SYSTEM_MONITOR_TASK_STACK_SIZE];
+static StaticTask_t system_monitor_task_buffer;
+
 /**
  * @brief 系统监控任务
  */
@@ -103,20 +107,21 @@ static void system_monitor_task(void *pvParameters)
 
 BaseType_t system_monitor_task_create(void)
 {
-    BaseType_t result = xTaskCreate(
+    TaskHandle_t task_handle = xTaskCreateStatic(
         system_monitor_task,
         "sys_monitor",
         SYSTEM_MONITOR_TASK_STACK_SIZE,
         NULL,
         SYSTEM_MONITOR_TASK_PRIORITY,
-        NULL
+        system_monitor_task_stack,
+        &system_monitor_task_buffer
     );
 
-    if (result != pdPASS) {
-        ESP_LOGE(TAG, "Failed to create system monitor task");
+    if (task_handle == NULL) {
+        ESP_LOGE(TAG, "Failed to create system monitor task (static)");
+        return pdFAIL;
     } else {
-        ESP_LOGI(TAG, "System monitor task created successfully");
+        ESP_LOGI(TAG, "System monitor task created successfully (static allocation)");
+        return pdPASS;
     }
-
-    return result;
 }

@@ -4,6 +4,7 @@
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 
 #define TAG "BOARD"
 
@@ -146,4 +147,124 @@ esp_err_t servo_set_angle(uint8_t target_angle)
 
     ESP_LOGI(TAG, "Servo reached %d degrees", s_current_angle);
     return ESP_OK;
+}
+
+// ============================================================================
+// Door Controller Implementation
+// ============================================================================
+
+/**
+ * @brief 门控制器状态结构
+ */
+typedef struct {
+    SemaphoreHandle_t mutex;      /* 互斥锁 */
+    bool is_open;                 /* 当前门状态 */
+    uint8_t open_angle;           /* 开门角度 */
+    uint8_t close_angle;          /* 关门角度 */
+    uint32_t open_duration_ms;    /* 开门持续时间 */
+} door_controller_t;
+
+static door_controller_t s_door_ctrl = {0};
+
+esp_err_t door_controller_init(void)
+{
+    ESP_LOGI(TAG, "Initializing door controller");
+
+    // 创建互斥锁
+    s_door_ctrl.mutex = xSemaphoreCreateMutex();
+    if (s_door_ctrl.mutex == NULL) {
+        ESP_LOGE(TAG, "Failed to create mutex for door controller");
+        return ESP_ERR_NO_MEM;
+    }
+
+    // 使用 board.h 中定义的固定参数
+    s_door_ctrl.open_angle = SERVO_ANGLE_POS2;      // 开门角度：80度
+    s_door_ctrl.close_angle = SERVO_ANGLE_POS1;     // 关门角度：135度
+    s_door_ctrl.open_duration_ms = OPEN_TIME;       // 开门持续时间：2000ms
+    s_door_ctrl.is_open = false;
+
+    ESP_LOGI(TAG, "Door controller initialized: open_angle=%d, close_angle=%d, duration=%lu ms",
+             s_door_ctrl.open_angle, s_door_ctrl.close_angle, s_door_ctrl.open_duration_ms);
+
+    return ESP_OK;
+}
+
+esp_err_t door_open(void)
+{
+    ESP_LOGI(TAG, "Door open requested");
+
+    // 获取互斥锁（无限等待）
+    if (xSemaphoreTake(s_door_ctrl.mutex, pdMS_TO_TICKS(2000)) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to acquire mutex");
+        return ESP_FAIL;
+    }
+
+    esp_err_t ret = ESP_OK;
+
+    // 1. 设置舵机到开门角度
+    ESP_LOGI(TAG, "Opening door to %d degrees", s_door_ctrl.open_angle);
+    ret = servo_set_angle(s_door_ctrl.open_angle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set servo to open angle");
+        xSemaphoreGive(s_door_ctrl.mutex);
+        return ret;
+    }
+
+    // 2. 更新状态
+    s_door_ctrl.is_open = true;
+
+    // 3. 阻塞等待配置的开门时间
+    ESP_LOGI(TAG, "Door open, waiting %lu ms before closing", s_door_ctrl.open_duration_ms);
+    vTaskDelay(pdMS_TO_TICKS(s_door_ctrl.open_duration_ms));
+
+    // 4. 设置舵机到关门角度
+    ESP_LOGI(TAG, "Closing door to %d degrees", s_door_ctrl.close_angle);
+    ret = servo_set_angle(s_door_ctrl.close_angle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set servo to close angle");
+        xSemaphoreGive(s_door_ctrl.mutex);
+        return ret;
+    }
+
+    // 5. 更新状态
+    s_door_ctrl.is_open = false;
+
+    // 释放互斥锁
+    xSemaphoreGive(s_door_ctrl.mutex);
+
+    ESP_LOGI(TAG, "Door operation completed");
+    return ESP_OK;
+}
+
+esp_err_t door_close(void)
+{
+    ESP_LOGI(TAG, "Door close requested");
+
+    // 获取互斥锁（无限等待）
+    if (xSemaphoreTake(s_door_ctrl.mutex, pdMS_TO_TICKS(2000)) != pdTRUE) {
+        ESP_LOGE(TAG, "Failed to acquire mutex");
+        return ESP_FAIL;
+    }
+
+    // 设置舵机到关门角度
+    esp_err_t ret = servo_set_angle(s_door_ctrl.close_angle);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set servo to close angle");
+        xSemaphoreGive(s_door_ctrl.mutex);
+        return ret;
+    }
+
+    // 更新状态
+    s_door_ctrl.is_open = false;
+
+    // 释放互斥锁
+    xSemaphoreGive(s_door_ctrl.mutex);
+
+    ESP_LOGI(TAG, "Door closed");
+    return ESP_OK;
+}
+
+bool door_is_open(void)
+{
+    return s_door_ctrl.is_open;
 }
