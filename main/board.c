@@ -18,11 +18,14 @@
 // 舵机平滑移动参数
 #define SERVO_STEP_DELAY_MS 20      // 每步延时(ms)，越大越慢
 #define SERVO_STEP_ANGLE    2       // 每步角度增量，越小越平滑
+#define SERVO_HOLD_TIME_MS  500     // 舵机到位后保持PWM信号的时间(ms)
 
 static uint8_t s_current_angle = 0; // 记录当前角度
 
 // 前向声明
 static esp_err_t servo_set_angle_direct(uint8_t angle);
+static esp_err_t servo_stop_pwm(void);
+static esp_err_t servo_start_pwm(void);
 
 void configure_led(void)
 {
@@ -79,8 +82,14 @@ esp_err_t configure_servo(void)
     // 初始化到位置1（直接设置，不走平滑）
     servo_set_angle_direct(SERVO_ANGLE_POS1);
     s_current_angle = SERVO_ANGLE_POS1;
+    
+    // 保持PWM信号让舵机到位
+    vTaskDelay(pdMS_TO_TICKS(SERVO_HOLD_TIME_MS));
+    
+    // 停止PWM信号，避免舵机长期受力
+    servo_stop_pwm();
 
-    ESP_LOGI(TAG, "MG995 Servo configured on GPIO%d at %dHz", SERVO_GPIO, SERVO_FREQ_HZ);
+    ESP_LOGI(TAG, "MG995 Servo configured on GPIO%d at %dHz (PWM stopped after init)", SERVO_GPIO, SERVO_FREQ_HZ);
     return ESP_OK;
 }
 
@@ -89,6 +98,7 @@ esp_err_t configure_servo(void)
  */
 static esp_err_t servo_set_angle_direct(uint8_t angle)
 {
+    // 角度范围限制 (uint8_t自动保证 >= 0)
     if (angle > SERVO_MAX_ANGLE) {
         angle = SERVO_MAX_ANGLE;
     }
@@ -98,12 +108,57 @@ static esp_err_t servo_set_angle_direct(uint8_t angle)
         (angle * (SERVO_MAX_PULSEWIDTH_US - SERVO_MIN_PULSEWIDTH_US)) / SERVO_MAX_ANGLE;
 
     // 将脉宽转换为LEDC duty值
-    uint32_t duty = (pulse_width_us * LEDC_DUTY_MAX) / 20000;
+    // 周期 = 20ms = 20000us, 使用64位避免溢出
+    uint32_t duty = ((uint64_t)pulse_width_us * LEDC_DUTY_MAX) / 20000;
 
     esp_err_t ret = ledc_set_duty(LEDC_MODE, LEDC_CHANNEL, duty);
-    if (ret != ESP_OK) return ret;
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to set LEDC duty: %s", esp_err_to_name(ret));
+        return ret;
+    }
 
-    return ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+    ret = ledc_update_duty(LEDC_MODE, LEDC_CHANNEL);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to update LEDC duty: %s", esp_err_to_name(ret));
+    }
+
+    return ret;
+}
+
+/**
+ * @brief 停止PWM输出，保护舵机
+ * 
+ * 舵机到位后应停止PWM信号，避免长期受力导致舵机发热损坏
+ */
+static esp_err_t servo_stop_pwm(void)
+{
+    esp_err_t ret = ledc_stop(LEDC_MODE, LEDC_CHANNEL, 0);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to stop PWM: %s", esp_err_to_name(ret));
+    }
+    return ret;
+}
+
+/**
+ * @brief 启动PWM输出
+ * 
+ * 在需要移动舵机前重新启动PWM
+ */
+static esp_err_t servo_start_pwm(void)
+{
+    // 重新配置LEDC Timer以恢复PWM输出
+    ledc_timer_config_t timer_conf = {
+        .speed_mode       = LEDC_MODE,
+        .timer_num        = LEDC_TIMER,
+        .duty_resolution  = LEDC_DUTY_RES,
+        .freq_hz          = SERVO_FREQ_HZ,
+        .clk_cfg          = LEDC_AUTO_CLK
+    };
+    esp_err_t ret = ledc_timer_config(&timer_conf);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to restart PWM timer: %s", esp_err_to_name(ret));
+    }
+    return ret;
 }
 
 esp_err_t servo_set_angle(uint8_t target_angle)
@@ -116,36 +171,57 @@ esp_err_t servo_set_angle(uint8_t target_angle)
 
     ESP_LOGI(TAG, "Servo moving: %d -> %d degrees", s_current_angle, target_angle);
 
+    // 启动PWM输出
+    esp_err_t ret = servo_start_pwm();
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to start PWM");
+        return ret;
+    }
+
     // 平滑过渡到目标角度
     while (s_current_angle != target_angle) {
+        // 计算下一步角度
+        uint8_t next_angle;
         if (s_current_angle < target_angle) {
             // 向上移动
-            s_current_angle += SERVO_STEP_ANGLE;
-            if (s_current_angle > target_angle) {
-                s_current_angle = target_angle;
+            next_angle = s_current_angle + SERVO_STEP_ANGLE;
+            if (next_angle > target_angle) {
+                next_angle = target_angle;
             }
         } else {
             // 向下移动
-            if (s_current_angle < SERVO_STEP_ANGLE) {
-                s_current_angle = 0;
+            if (s_current_angle <= SERVO_STEP_ANGLE) {
+                next_angle = 0;
             } else {
-                s_current_angle -= SERVO_STEP_ANGLE;
+                next_angle = s_current_angle - SERVO_STEP_ANGLE;
             }
-            if (s_current_angle < target_angle) {
-                s_current_angle = target_angle;
+            if (next_angle < target_angle) {
+                next_angle = target_angle;
             }
         }
 
-        esp_err_t ret = servo_set_angle_direct(s_current_angle);
+        // 尝试设置角度
+        ret = servo_set_angle_direct(next_angle);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "Failed to set servo angle");
+            ESP_LOGE(TAG, "Failed to set servo angle at %d degrees", next_angle);
             return ret;
         }
+
+        // 更新当前角度（只有在硬件设置成功后才更新）
+        s_current_angle = next_angle;
 
         vTaskDelay(pdMS_TO_TICKS(SERVO_STEP_DELAY_MS));
     }
 
     ESP_LOGI(TAG, "Servo reached %d degrees", s_current_angle);
+    
+    // 保持PWM信号让舵机稳定到位
+    vTaskDelay(pdMS_TO_TICKS(SERVO_HOLD_TIME_MS));
+    
+    // 停止PWM信号，避免舵机长期受力损坏
+    servo_stop_pwm();
+    ESP_LOGI(TAG, "Servo PWM stopped to protect servo");
+    
     return ESP_OK;
 }
 
