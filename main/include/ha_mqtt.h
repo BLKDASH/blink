@@ -3,7 +3,7 @@
  * @brief Home Assistant MQTT 客户端模块
  * 
  * 实现 MQTT 客户端，集成 Home Assistant 自动发现，
- * 提供开门开关远程控制功能。
+ * 提供开门按钮远程控制功能。
  */
 
 #ifndef HA_MQTT_H
@@ -53,7 +53,9 @@ esp_err_t ha_mqtt_stop(void);
 bool ha_mqtt_is_connected(void);
 
 /**
- * @brief 发布开关状态到 MQTT
+ * @brief 发布门状态到 MQTT（可选）
+ * 
+ * 注意：Button 类型不需要状态反馈，此函数保留用于调试或扩展
  * 
  * @param is_on true 为开，false 为关
  * @return ESP_OK 成功，其他失败

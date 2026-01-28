@@ -3,7 +3,7 @@
  * @brief Home Assistant MQTT 客户端模块实现
  * 
  * 实现 MQTT 客户端，集成 Home Assistant 自动发现，
- * 提供开门开关远程控制功能。
+ * 提供开门按钮远程控制功能。
  */
 
 #include <string.h>
@@ -92,7 +92,7 @@ static void build_topics(void)
     snprintf(s_cmd_topic, TOPIC_BUF_SIZE, "esp32c6/%s/door/set", s_device_id);
     snprintf(s_state_topic, TOPIC_BUF_SIZE, "esp32c6/%s/door/state", s_device_id);
     snprintf(s_availability_topic, TOPIC_BUF_SIZE, "esp32c6/%s/availability", s_device_id);
-    snprintf(s_discovery_topic, TOPIC_BUF_SIZE, "homeassistant/switch/%s/door/config", s_device_id);
+    snprintf(s_discovery_topic, TOPIC_BUF_SIZE, "homeassistant/button/%s/door/config", s_device_id);
     
     ESP_LOGI(TAG, "Command topic: %s", s_cmd_topic);
     ESP_LOGI(TAG, "State topic: %s", s_state_topic);
@@ -116,17 +116,15 @@ static esp_err_t publish_ha_discovery(void)
         return ESP_ERR_INVALID_STATE;
     }
     
-    /* 构建 Discovery JSON 配置 */
+    /* 构建 Discovery JSON 配置 - Button 类型 */
     char discovery_payload[PAYLOAD_BUF_SIZE];
     int len = snprintf(discovery_payload, PAYLOAD_BUF_SIZE,
         "{"
-        "\"name\":\"Door Switch\","
+        "\"name\":\"Door Button\","
         "\"unique_id\":\"%s_door\","
         "\"command_topic\":\"%s\","
-        "\"state_topic\":\"%s\","
         "\"availability_topic\":\"%s\","
-        "\"payload_on\":\"ON\","
-        "\"payload_off\":\"OFF\","
+        "\"payload_press\":\"PRESS\","
         "\"payload_available\":\"online\","
         "\"payload_not_available\":\"offline\","
         "\"device\":{"
@@ -138,7 +136,6 @@ static esp_err_t publish_ha_discovery(void)
         "}",
         s_device_id,
         s_cmd_topic,
-        s_state_topic,
         s_availability_topic,
         s_device_id
     );
@@ -190,10 +187,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
             /* 订阅命令主题 */
             int msg_id = esp_mqtt_client_subscribe(s_mqtt_client, s_cmd_topic, 1);
             ESP_LOGI(TAG, "Subscribed to %s, msg_id=%d", s_cmd_topic, msg_id);
-            
-            /* 发布初始门状态（默认为 OFF） */
-            esp_mqtt_client_publish(s_mqtt_client, s_state_topic, "OFF", 0, 1, 1);
-            ESP_LOGI(TAG, "Published initial door state: OFF");
             break;
             
         case MQTT_EVENT_DISCONNECTED:
@@ -224,13 +217,10 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
             if (event->topic_len > 0 && 
                 strncmp(event->topic, s_cmd_topic, event->topic_len) == 0) {
                 
-                /* 解析命令 */
-                if (event->data_len >= 2 && strncmp(event->data, "ON", 2) == 0) {
-                    ESP_LOGI(TAG, "Received door ON command");
-                    bt_spp_log("[MQTT] Door ON command received");
-                    
-                    /* 发布开门状态 */
-                    ha_mqtt_publish_door_state(true);
+                /* 解析按钮按下命令 */
+                if (event->data_len >= 5 && strncmp(event->data, "PRESS", 5) == 0) {
+                    ESP_LOGI(TAG, "Received door button press");
+                    bt_spp_log("[MQTT] Door button pressed");
                     
                     /* 直接调用开门函数（阻塞） */
                     esp_err_t ret = door_open();
@@ -241,14 +231,6 @@ static void mqtt_event_handler(void *handler_args, esp_event_base_t base,
                         ESP_LOGI(TAG, "Door operation completed");
                         bt_spp_log("[MQTT] Door operation completed");
                     }
-                    
-                    /* 开门完成后发布关门状态 */
-                    ha_mqtt_publish_door_state(false);
-                    
-                } else if (event->data_len >= 3 && strncmp(event->data, "OFF", 3) == 0) {
-                    ESP_LOGI(TAG, "Received door OFF command (ignored - door auto-closes)");
-                    bt_spp_log("[MQTT] Door OFF command received (ignored)");
-                    /* OFF 命令忽略，因为开门会自动关门 */
                 } else {
                     ESP_LOGW(TAG, "Unknown command: %.*s", event->data_len, event->data);
                 }
